@@ -42,3 +42,5 @@ npm run preview  # Preview production build
 ## Hotkeys
 
 - `R` - Rotate (tap/untap) hovered card 90 degrees
+- `U` - Toggle card under/over site
+- `1-9` - Draw N cards from hovered deck
