@@ -1,0 +1,115 @@
+import { CardInstance, Thresholds } from './card';
+
+export type Player = 'player' | 'opponent';
+export type DeckType = 'site' | 'spell';
+
+// Board position (row 0-3, col 0-4)
+export interface BoardPosition {
+  row: number;
+  col: number;
+}
+
+// Vertex position (row 0-2, col 0-3) - intersections between 4 sites
+export interface VertexPosition {
+  row: number;
+  col: number;
+}
+
+// A site on the board can have a site card and multiple spells/units on top
+export interface BoardSite {
+  siteCard: CardInstance | null;
+  units: CardInstance[]; // Minions, Artifacts, Auras on this site
+  underCards: CardInstance[]; // Cards placed underneath the site
+}
+
+// The game board is a 4x5 grid
+export type BoardGrid = BoardSite[][];
+
+export interface GameState {
+  // Board: 4 rows x 5 columns
+  board: BoardGrid;
+
+  // Avatars: always on board, keyed by position "row-col"
+  avatars: Record<string, CardInstance>;
+
+  // Vertices: units at intersections, keyed by "v-row-col"
+  vertices: Record<string, CardInstance[]>;
+
+  // Player hands
+  playerHand: CardInstance[];
+  opponentHand: CardInstance[];
+
+  // Decks
+  playerSiteDeck: CardInstance[];
+  playerSpellDeck: CardInstance[];
+  opponentSiteDeck: CardInstance[];
+  opponentSpellDeck: CardInstance[];
+
+  // Graveyards
+  playerGraveyard: CardInstance[];
+  opponentGraveyard: CardInstance[];
+
+  // Life totals
+  playerLife: number;
+  opponentLife: number;
+
+  // Mana pools (available / total)
+  playerMana: number;
+  playerManaTotal: number;
+  opponentMana: number;
+  opponentManaTotal: number;
+
+  // Thresholds (from sites)
+  playerThresholds: Thresholds;
+  opponentThresholds: Thresholds;
+
+  // Turn state
+  currentTurn: Player;
+  turnNumber: number;
+
+  // Selected/hovered card for interactions
+  selectedCard: CardInstance | null;
+  hoveredCard: CardInstance | null;
+
+  // Hovered deck for hotkey targeting
+  hoveredDeck: { player: Player; deckType: DeckType } | null;
+}
+
+// Helper to create empty board
+export function createEmptyBoard(): BoardGrid {
+  return Array(4)
+    .fill(null)
+    .map(() =>
+      Array(5)
+        .fill(null)
+        .map(() => ({
+          siteCard: null,
+          units: [],
+          underCards: [],
+        }))
+    );
+}
+
+// Helper to create position key
+export function positionKey(row: number, col: number): string {
+  return `${row}-${col}`;
+}
+
+// Helper to parse position key
+export function parsePositionKey(key: string): BoardPosition {
+  const [row, col] = key.split('-').map(Number);
+  return { row, col };
+}
+
+// Helper to create vertex key
+export function vertexKey(row: number, col: number): string {
+  return `v-${row}-${col}`;
+}
+
+// Helper to parse vertex key
+export function parseVertexKey(key: string): VertexPosition {
+  const parts = key.split('-');
+  const row = Number(parts[1]);
+  const col = Number(parts[2]);
+  return { row, col };
+}
