@@ -21,7 +21,7 @@ const sizes = {
 
 const horizontalSizes = {
   xsmall: { width: 90, height: 60 },
-  small: { width: 128, height: 85 },
+  small: { width: 152, height: 101 },
   medium: { width: 180, height: 120 },
   large: { width: 240, height: 160 },
 };

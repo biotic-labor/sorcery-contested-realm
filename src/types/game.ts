@@ -73,6 +73,9 @@ export interface GameState {
 
   // Hovered deck for hotkey targeting
   hoveredDeck: { player: Player; deckType: DeckType } | null;
+
+  // Currently shuffling deck (for animation)
+  shufflingDeck: { player: Player; deckType: DeckType } | null;
 }
 
 // Helper to create empty board

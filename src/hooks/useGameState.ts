@@ -104,6 +104,7 @@ const initialState: GameState = {
   selectedCard: null,
   hoveredCard: null,
   hoveredDeck: null,
+  shufflingDeck: null,
 };
 
 export const useGameStore = create<GameState & GameActions>((set) => ({
@@ -436,6 +437,9 @@ export const useGameStore = create<GameState & GameActions>((set) => ({
   },
 
   shuffleDeck: (player, deckType) => {
+    // Set shuffling state for animation
+    set({ shufflingDeck: { player, deckType } });
+
     set((state) => {
       const deckKey = `${player}${deckType === 'site' ? 'Site' : 'Spell'}Deck` as keyof GameState;
       const deck = [...(state[deckKey] as CardInstance[])];
@@ -446,6 +450,11 @@ export const useGameStore = create<GameState & GameActions>((set) => ({
       }
       return { [deckKey]: deck };
     });
+
+    // Clear shuffling state after animation
+    setTimeout(() => {
+      set({ shufflingDeck: null });
+    }, 600);
   },
 
   drawCards: (player, deckType, count) => {

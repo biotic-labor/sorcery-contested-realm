@@ -94,15 +94,16 @@ export function BoardSite({
 
       {/* Units stacked on site */}
       {site.units.length > 0 && (
-        <div className="absolute inset-0 flex items-center justify-center" style={{ zIndex: 2 }}>
+        <div className="absolute inset-0 flex items-center justify-center" style={{ zIndex: 2, pointerEvents: 'none' }}>
           <div className="relative">
             {site.units.map((unit, index) => (
               <div
                 key={unit.id}
                 className="absolute"
                 style={{
-                  transform: `translateY(${index * -25}px) translateX(${index * 15}px)`,
+                  transform: `translateY(${index * 25}px) translateX(${index * 15}px)`,
                   zIndex: index + 1,
+                  pointerEvents: 'auto',
                 }}
               >
                 <DraggableBoardCard
@@ -121,48 +122,55 @@ export function BoardSite({
 
       {/* Avatar on site */}
       {avatar && (
-        <div className="absolute inset-0 flex items-center justify-center" style={{ zIndex: 3 }}>
-          <DraggableBoardCard
-            card={avatar}
-            sourcePosition={id}
-            isSelected={selectedCardId === avatar.id}
-            isHovered={hoveredCardId === avatar.id}
-            onClick={() => onCardClick?.(avatar)}
-            onHover={onCardHover}
-          />
+        <div className="absolute inset-0 flex items-center justify-center" style={{ zIndex: 3, pointerEvents: 'none' }}>
+          <div style={{ pointerEvents: 'auto' }}>
+            <DraggableBoardCard
+              card={avatar}
+              sourcePosition={id}
+              isSelected={selectedCardId === avatar.id}
+              isHovered={hoveredCardId === avatar.id}
+              onClick={() => onCardClick?.(avatar)}
+              onHover={onCardHover}
+            />
+          </div>
         </div>
       )}
 
-      {/* Cards under site - shown at lower-left */}
+      {/* Cards under site - tucked behind the site card */}
       {site.underCards.length > 0 && (
         <div
           style={{
             position: 'absolute',
-            bottom: '-35px',
-            left: '-10px',
+            bottom: '0px',
+            left: '-15px',
             zIndex: 0,
             display: 'flex',
           }}
         >
-          {site.underCards.map((card, index) => (
-            <div
-              key={card.id}
-              style={{
-                marginLeft: index > 0 ? '-50px' : 0,
-                transform: 'scale(0.6)',
-                transformOrigin: 'bottom left',
-              }}
-            >
-              <DraggableBoardCard
-                card={card}
-                sourcePosition={id}
-                isSelected={selectedCardId === card.id}
-                isHovered={hoveredCardId === card.id}
-                onClick={() => onCardClick?.(card)}
-                onHover={onCardHover}
-              />
-            </div>
-          ))}
+          {site.underCards.map((card, index) => {
+            const isHovered = hoveredCardId === card.id;
+            return (
+              <div
+                key={card.id}
+                style={{
+                  marginLeft: index > 0 ? '-40px' : 0,
+                  transform: `translateY(${30 + index * 15}px) ${isHovered ? 'scale(0.75)' : 'scale(0.65)'}`,
+                  transformOrigin: 'center bottom',
+                  zIndex: isHovered ? 20 : index + 1,
+                  transition: 'transform 0.15s ease, z-index 0s',
+                }}
+              >
+                <DraggableBoardCard
+                  card={card}
+                  sourcePosition={id}
+                  isSelected={selectedCardId === card.id}
+                  isHovered={isHovered}
+                  onClick={() => onCardClick?.(card)}
+                  onHover={onCardHover}
+                />
+              </div>
+            );
+          })}
         </div>
       )}
 

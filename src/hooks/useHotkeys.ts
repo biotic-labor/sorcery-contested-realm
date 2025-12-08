@@ -2,15 +2,22 @@ import { useEffect } from 'react';
 import { useGameStore } from './useGameState';
 
 export function useHotkeys() {
-  const { hoveredCard, selectedCard, rotateCard, toggleCardUnder, hoveredDeck, drawCards } = useGameStore();
+  const { hoveredCard, selectedCard, rotateCard, toggleCardUnder, hoveredDeck, drawCards, shuffleDeck } = useGameStore();
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      // R key to rotate hovered or selected card
-      if (event.key === 'r' || event.key === 'R') {
+      // E key to rotate hovered or selected card
+      if (event.key === 'e' || event.key === 'E') {
         const targetCard = hoveredCard || selectedCard;
         if (targetCard) {
           rotateCard(targetCard.id);
+        }
+      }
+
+      // R key to shuffle hovered deck
+      if (event.key === 'r' || event.key === 'R') {
+        if (hoveredDeck) {
+          shuffleDeck(hoveredDeck.player, hoveredDeck.deckType);
         }
       }
 
@@ -31,5 +38,5 @@ export function useHotkeys() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [hoveredCard, selectedCard, rotateCard, toggleCardUnder, hoveredDeck, drawCards]);
+  }, [hoveredCard, selectedCard, rotateCard, toggleCardUnder, hoveredDeck, drawCards, shuffleDeck]);
 }

@@ -40,6 +40,7 @@ function App() {
     removeCardFromBoard,
     // Avatar
     placeAvatar,
+    moveAvatar,
     // Vertex actions
     placeUnitOnVertex,
     removeCardFromVertex,
@@ -214,7 +215,11 @@ function App() {
       } else {
         // Moving from board to board
         const fromPosition = parsePositionKey(sourcePosition);
-        moveCard(card.id, fromPosition, targetPosition);
+        if (card.cardData.guardian.type === 'Avatar') {
+          moveAvatar(card.id, fromPosition, targetPosition);
+        } else {
+          moveCard(card.id, fromPosition, targetPosition);
+        }
       }
     } else if (source === 'hand') {
       // Moving from hand to board
