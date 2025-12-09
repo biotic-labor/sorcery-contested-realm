@@ -9,7 +9,6 @@ import { DeckZone } from '../DeckZone';
 import { DiscardPile } from '../DiscardPile';
 import { DeckImportButton } from '../DeckImport';
 import { GameLog } from '../GameLog';
-import { GhostCard } from '../GhostCard';
 import { Card } from '../Card';
 import { useGameStore } from '../../hooks/useGameState';
 import { useGameActions } from '../../hooks/useGameActions';
@@ -140,10 +139,13 @@ export function Game({ onLeave }: GameProps) {
       // Clear any stale opponent drag ghost when we start dragging
       if (isMultiplayer) {
         setOpponentDrag(null);
+        // Only broadcast card data for cards from visible zones (board).
+        // Cards from hand are hidden - don't leak what card is being played.
+        const isFromVisibleZone = source === 'board';
         peerService.send({
           type: 'drag_start',
           cardId: card.id,
-          cardData: card.cardData,
+          cardData: isFromVisibleZone ? card.cardData : undefined,
           from: sourcePosition || 'hand',
         });
       }
@@ -410,9 +412,6 @@ export function Game({ onLeave }: GameProps) {
           <Card card={activeCard} size="medium" />
         )}
       </DragOverlay>
-
-      {/* Ghost card - shows opponent's drag position */}
-      <GhostCard isLocalDragging={activeCard !== null} />
     </DndContext>
   );
 }

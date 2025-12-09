@@ -1,0 +1,35 @@
+# Dependencies
+node_modules/
+
+# Build outputs (rebuilt in container)
+dist/
+dist-server/
+
+# Development files
+.git/
+.gitignore
+.vscode/
+.idea/
+
+# Environment files (use Docker env vars instead)
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# TypeScript cache
+*.tsbuildinfo
+.vite/
+
+# Documentation
+*.md
+
+# Card images (mount as volume or copy separately)
+public/assets/cards/

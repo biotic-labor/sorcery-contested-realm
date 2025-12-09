@@ -799,7 +799,8 @@ export const useMultiplayerStore = create<MultiplayerState & MultiplayerActions>
             break;
 
           case 'end_turn':
-            gameStore.startTurn(state.localPlayer);
+            // Opponent ended their turn, switch turn to local player
+            gameStore.endTurn();
             state.addLogEntry({
               type: 'system',
               player: state.localPlayer === 'player' ? 'opponent' : 'player',

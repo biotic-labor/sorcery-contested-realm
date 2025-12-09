@@ -10,8 +10,32 @@ Browser-based 1v1 tabletop game client for Sorcery: Contested Realm TCG. Support
 
 ```bash
 npm run dev       # Vite (3000) + Express API (3001)
-npm run build     # TypeScript check + production build
-npm run preview   # Preview production build
+npm run build     # TypeScript check + Vite production build
+npm run build:all # Build frontend + server for production
+npm run start     # Run production server (serves built frontend)
+npm run preview   # Preview Vite production build
+```
+
+## Docker Deployment
+
+```bash
+# Build and run locally
+docker compose up --build
+
+# Or build image directly
+docker build -t sorcery .
+docker run -p 3000:3000 sorcery
+```
+
+**Environment Variables:**
+- `PORT` - Server port (default: 3000)
+- `CORS_ORIGIN` - Allowed CORS origin (default: http://localhost:3000)
+- `NODE_ENV` - Set to "production" in Docker
+
+**Card Images:** Mount as volume if needed:
+```yaml
+volumes:
+  - ./public/assets/cards:/app/dist/assets/cards:ro
 ```
 
 ## Hotkeys

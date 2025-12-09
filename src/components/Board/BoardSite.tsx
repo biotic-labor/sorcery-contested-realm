@@ -55,7 +55,7 @@ export function BoardSite({
         relative border border-gray-600 rounded-lg
         transition-colors duration-200
         ${isHighlighted ? 'bg-green-900 border-green-400' : 'bg-gray-800'}
-        ${!hasContent ? 'bg-opacity-50' : ''}
+        ${hasContent ? 'bg-opacity-50' : 'bg-opacity-25'}
       `}
       style={{ width: '160px', height: '120px' }}
     >

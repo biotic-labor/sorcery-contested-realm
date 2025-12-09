@@ -45,13 +45,23 @@ export function GameControls() {
       <div className="flex gap-2">
         <button
           onClick={handleStartTurn}
-          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded transition-colors"
+          disabled={isMultiplayer && !isMyTurn}
+          className={`px-4 py-2 text-white text-sm rounded transition-colors ${
+            isMultiplayer && !isMyTurn
+              ? 'bg-gray-600 cursor-not-allowed'
+              : 'bg-blue-600 hover:bg-blue-700'
+          }`}
         >
           Start Turn
         </button>
         <button
           onClick={endTurn}
-          className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm rounded transition-colors"
+          disabled={isMultiplayer && !isMyTurn}
+          className={`px-4 py-2 text-white text-sm rounded transition-colors ${
+            isMultiplayer && !isMyTurn
+              ? 'bg-gray-600 cursor-not-allowed'
+              : 'bg-green-600 hover:bg-green-700'
+          }`}
         >
           End Turn
         </button>

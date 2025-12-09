@@ -61,7 +61,7 @@ export type GameMessage =
   | { type: 'end_turn' }
 
   // Drag visualization
-  | { type: 'drag_start'; cardId: string; cardData: CardData; from: string }
+  | { type: 'drag_start'; cardId: string; cardData?: CardData; from: string }
   | { type: 'drag_move'; x: number; y: number }
   | { type: 'drag_end'; to: string | null }
 
@@ -97,7 +97,7 @@ export interface SavedGame {
 // Opponent drag state for visualization
 export interface OpponentDragState {
   cardId: string;
-  cardData: CardData;
+  cardData?: CardData; // undefined for cards from hidden zones (hand)
   x: number;
   y: number;
 }

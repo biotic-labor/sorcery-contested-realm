@@ -1,0 +1,13 @@
+services:
+  sorcery:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - CORS_ORIGIN=http://localhost:3000
+    # Uncomment to mount card images from host
+    # volumes:
+    #   - ./public/assets/cards:/app/dist/assets/cards:ro
+    restart: unless-stopped

@@ -1,5 +1,5 @@
 import { useMultiplayerStore } from '../../hooks/useMultiplayer';
-import { Card } from '../Card';
+import { Card, CardBack } from '../Card';
 import { CardInstance } from '../../types';
 
 interface GhostCardProps {
@@ -18,22 +18,6 @@ export function GhostCard({ isLocalDragging = false }: GhostCardProps) {
     return null;
   }
 
-  // Create a temporary card instance for rendering
-  const ghostCard: CardInstance = {
-    id: `ghost-${opponentDrag.cardId}`,
-    cardData: opponentDrag.cardData,
-    variant: {
-      slug: opponentDrag.cardData.sets?.[0]?.variants?.[0]?.slug || 'unknown',
-      finish: 'Standard',
-      product: '',
-      artist: '',
-      flavorText: '',
-      typeText: '',
-    },
-    rotation: 0,
-    owner: localPlayer === 'player' ? 'opponent' : 'player',
-  };
-
   // Transform coordinates based on player perspective
   // When board is rotated for player 2, we need to adjust the ghost position
   const isRotated = localPlayer === 'opponent';
@@ -42,6 +26,27 @@ export function GhostCard({ isLocalDragging = false }: GhostCardProps) {
   // This is approximate since screen sizes may differ
   const x = isRotated ? window.innerWidth - opponentDrag.x : opponentDrag.x;
   const y = isRotated ? window.innerHeight - opponentDrag.y : opponentDrag.y;
+
+  // If cardData is not provided (hidden zone like hand), show a card back
+  const isHiddenCard = !opponentDrag.cardData;
+
+  // Create a temporary card instance for rendering (only if we have card data)
+  const ghostCard: CardInstance | null = opponentDrag.cardData
+    ? {
+        id: `ghost-${opponentDrag.cardId}`,
+        cardData: opponentDrag.cardData,
+        variant: {
+          slug: opponentDrag.cardData.sets?.[0]?.variants?.[0]?.slug || 'unknown',
+          finish: 'Standard',
+          product: '',
+          artist: '',
+          flavorText: '',
+          typeText: '',
+        },
+        rotation: 0,
+        owner: localPlayer === 'player' ? 'opponent' : 'player',
+      }
+    : null;
 
   return (
     <div
@@ -54,7 +59,11 @@ export function GhostCard({ isLocalDragging = false }: GhostCardProps) {
         filter: 'drop-shadow(0 0 8px rgba(59, 130, 246, 0.5))',
       }}
     >
-      <Card card={ghostCard} size="small" />
+      {isHiddenCard ? (
+        <CardBack size="small" deckType="spell" />
+      ) : (
+        <Card card={ghostCard!} size="small" />
+      )}
       <div className="absolute -bottom-6 left-1/2 -translate-x-1/2 text-xs text-blue-400 whitespace-nowrap bg-gray-900 px-2 py-0.5 rounded">
         Opponent dragging
       </div>

@@ -1,3 +1,4 @@
+import { useState, useEffect, useRef } from 'react';
 import { useGameStore } from '../../hooks/useGameState';
 import { useGameActions } from '../../hooks/useGameActions';
 import { useMultiplayerStore } from '../../hooks/useMultiplayer';
@@ -9,12 +10,26 @@ interface ClickableValueProps {
   onIncrement: () => void;
   onDecrement: () => void;
   size?: 'normal' | 'small';
+  disabled?: boolean;
 }
 
-function ClickableValue({ value, color, onIncrement, onDecrement, size = 'normal' }: ClickableValueProps) {
+function ClickableValue({ value, color, onIncrement, onDecrement, size = 'normal', disabled = false }: ClickableValueProps) {
   const fontSize = size === 'small' ? '18px' : '28px';
   const minWidth = size === 'small' ? '28px' : '40px';
   const height = size === 'small' ? '36px' : '48px';
+
+  // Flash effect when value changes
+  const [flash, setFlash] = useState(false);
+  const prevValue = useRef(value);
+
+  useEffect(() => {
+    if (prevValue.current !== value) {
+      setFlash(true);
+      const timer = setTimeout(() => setFlash(false), 200);
+      prevValue.current = value;
+      return () => clearTimeout(timer);
+    }
+  }, [value]);
 
   return (
     <div
@@ -28,35 +43,40 @@ function ClickableValue({ value, color, onIncrement, onDecrement, size = 'normal
         userSelect: 'none',
         border: '1px solid #4b5563',
         borderRadius: '4px',
-        backgroundColor: '#374151',
+        backgroundColor: flash ? '#ffffff' : '#374151',
+        transition: 'background-color 0.1s ease-out',
       }}
     >
-      <div
-        onClick={onIncrement}
-        style={{
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          right: 0,
-          height: '50%',
-          cursor: 'pointer',
-          borderBottom: '1px solid #4b5563',
-        }}
-        className="hover:bg-white/10 active:bg-white/20"
-      />
-      <div
-        onClick={onDecrement}
-        style={{
-          position: 'absolute',
-          bottom: 0,
-          left: 0,
-          right: 0,
-          height: '50%',
-          cursor: 'pointer',
-        }}
-        className="hover:bg-white/10 active:bg-white/20"
-      />
-      <span style={{ fontSize, fontWeight: 'bold', color, pointerEvents: 'none' }}>
+      {!disabled && (
+        <>
+          <div
+            onClick={onIncrement}
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              height: '50%',
+              cursor: 'pointer',
+              borderBottom: '1px solid #4b5563',
+            }}
+            className="hover:bg-white/10 active:bg-white/20"
+          />
+          <div
+            onClick={onDecrement}
+            style={{
+              position: 'absolute',
+              bottom: 0,
+              left: 0,
+              right: 0,
+              height: '50%',
+              cursor: 'pointer',
+            }}
+            className="hover:bg-white/10 active:bg-white/20"
+          />
+        </>
+      )}
+      <span style={{ fontSize, fontWeight: 'bold', color: flash ? '#1f2937' : color, pointerEvents: 'none', transition: 'color 0.1s ease-out' }}>
         {value}
       </span>
     </div>
@@ -71,9 +91,10 @@ interface PlayerStatBlockProps {
   manaTotal: number;
   thresholds: Thresholds;
   dataPlayer: Player; // The actual player in game state (for actions)
+  disabled?: boolean; // Disable controls (for opponent stats in multiplayer)
 }
 
-function PlayerStatBlock({ player, label, life, mana, manaTotal, thresholds, dataPlayer }: PlayerStatBlockProps) {
+function PlayerStatBlock({ player, label, life, mana, manaTotal, thresholds, dataPlayer, disabled = false }: PlayerStatBlockProps) {
   // Broadcasted actions
   const { adjustLife, adjustMana, adjustManaTotal } = useGameActions();
 
@@ -108,6 +129,7 @@ function PlayerStatBlock({ player, label, life, mana, manaTotal, thresholds, dat
             color="#ef4444"
             onIncrement={() => adjustLife(dataPlayer, 1)}
             onDecrement={() => adjustLife(dataPlayer, -1)}
+            disabled={disabled}
           />
         </div>
         {/* Mana */}
@@ -122,6 +144,7 @@ function PlayerStatBlock({ player, label, life, mana, manaTotal, thresholds, dat
               size="small"
               onIncrement={() => adjustMana(dataPlayer, 1)}
               onDecrement={() => adjustMana(dataPlayer, -1)}
+              disabled={disabled}
             />
             <span style={{ fontSize: '18px', color: '#6b7280' }}>/</span>
             <ClickableValue
@@ -130,6 +153,7 @@ function PlayerStatBlock({ player, label, life, mana, manaTotal, thresholds, dat
               size="small"
               onIncrement={() => adjustManaTotal(dataPlayer, 1)}
               onDecrement={() => adjustManaTotal(dataPlayer, -1)}
+              disabled={disabled}
             />
           </div>
         </div>
@@ -281,6 +305,7 @@ export function PlayerStats() {
         manaTotal={theirManaTotal}
         thresholds={theirThresholds}
         dataPlayer={theirDataPlayer}
+        disabled={isMultiplayer}
       />
       <PlayerStatBlock
         player="player"
