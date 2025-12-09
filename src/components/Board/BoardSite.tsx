@@ -61,7 +61,7 @@ export function BoardSite({
     >
       {/* Grid position label (1-20 for dice rolls) - counter-rotate so it's readable */}
       <div
-        className="absolute top-1 left-1 text-xs text-gray-500 font-mono"
+        className="absolute top-1 left-1 text-xs text-white font-mono"
         style={{
           zIndex: 0,
           transform: labelCounterRotate ? 'rotate(180deg)' : undefined,
