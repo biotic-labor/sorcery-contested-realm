@@ -55,8 +55,21 @@ export interface CardInstance {
   sourceDeck?: 'site' | 'spell'; // Which deck the card was drawn from (for hidden card backs)
 }
 
-// Helper to get image URL from slug
+// CDN base URL for all card assets
+const CDN_BASE_URL = 'https://cdn.play-sorcery.com';
+
+// Helper to get card image URL from slug
 export function getCardImageUrl(slug: string): string {
-  // For now, use local assets. In production, this would point to S3/CDN
-  return `/assets/cards/${slug}.png`;
+  return `${CDN_BASE_URL}/card-fronts/${slug}.png`;
+}
+
+// Helper to get card back image URL
+export function getCardBackUrl(type: 'site' | 'spell'): string {
+  const filename = type === 'site' ? 'cardback-atlas.png' : 'cardback-spellbook.png';
+  return `${CDN_BASE_URL}/card-backs/${filename}`;
+}
+
+// Helper to get playmat image URL
+export function getPlaymatUrl(name: string): string {
+  return `${CDN_BASE_URL}/playmats/${name}`;
 }

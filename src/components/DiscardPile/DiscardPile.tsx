@@ -1,5 +1,5 @@
 import { useDroppable } from '@dnd-kit/core';
-import { Player, CardInstance } from '../../types';
+import { Player, CardInstance, getCardImageUrl } from '../../types';
 import { useGameStore } from '../../hooks/useGameState';
 
 interface DiscardPileProps {
@@ -42,7 +42,7 @@ export function DiscardPile({ player, cards }: DiscardPileProps) {
         <>
           {/* Top card image */}
           <img
-            src={`/assets/cards/${topCard.variant.slug}.png`}
+            src={getCardImageUrl(topCard.variant.slug)}
             alt={topCard.cardData.name}
             style={{
               width: '100%',

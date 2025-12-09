@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import { useGameStore } from '../../hooks/useGameState';
 import { useMultiplayerStore } from '../../hooks/useMultiplayer';
-import { positionKey, vertexKey, parseVertexKey, CardInstance } from '../../types';
+import { positionKey, vertexKey, parseVertexKey, CardInstance, getPlaymatUrl } from '../../types';
 import { BoardSite } from './BoardSite';
 import { BoardVertex } from './BoardVertex';
 
@@ -75,7 +75,7 @@ export function Board() {
             gridTemplateRows: 'repeat(4, 120px)',
             gap: '8px',
             padding: '16px',
-            backgroundImage: 'url(/assets/playmats/orb-of-bal-barath.jpg)',
+            backgroundImage: `url(${getPlaymatUrl('orb-of-bal-barath.jpg')})`,
             backgroundSize: 'cover',
             backgroundPosition: 'center',
             borderRadius: '12px',

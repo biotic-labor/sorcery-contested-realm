@@ -1,4 +1,4 @@
-import { DeckType } from '../../types';
+import { DeckType, getCardBackUrl } from '../../types';
 
 interface CardBackProps {
   size?: 'xsmall' | 'small' | 'medium' | 'large';
@@ -12,16 +12,9 @@ const sizes = {
   large: { width: 160, height: 240 },
 };
 
-// Card back images (local assets)
-const CARD_BACK_URLS = {
-  site: '/assets/card-backs/cardback-atlas.png',
-  spell: '/assets/card-backs/cardback-spellbook.png',
-  default: '/assets/card-backs/cardback-spellbook.png', // Default to spell back
-};
-
 export function CardBack({ size = 'medium', deckType }: CardBackProps) {
   const cardSize = sizes[size];
-  const backUrl = deckType ? CARD_BACK_URLS[deckType] : CARD_BACK_URLS.default;
+  const backUrl = getCardBackUrl(deckType ?? 'spell');
 
   return (
     <div
