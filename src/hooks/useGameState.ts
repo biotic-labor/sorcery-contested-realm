@@ -77,6 +77,8 @@ interface GameActions {
     player: Player
   ) => void;
   clearDecks: (player: Player) => void;
+  // Set decks directly (for multiplayer sync - no shuffle)
+  setDecks: (player: Player, siteCards: CardInstance[], spellCards: CardInstance[]) => void;
 }
 
 const initialState: GameState = {
@@ -466,7 +468,9 @@ export const useGameStore = create<GameState & GameActions>((set) => ({
 
       const cardsToDraw = Math.min(count, deck.length);
       const drawnCards = deck.splice(0, cardsToDraw);
-      hand.push(...drawnCards);
+      // Tag drawn cards with their source deck (for hidden card back display)
+      const taggedCards = drawnCards.map(card => ({ ...card, sourceDeck: deckType }));
+      hand.push(...taggedCards);
 
       return { [deckKey]: deck, [handKey]: hand };
     });
@@ -604,6 +608,18 @@ export const useGameStore = create<GameState & GameActions>((set) => ({
           vertices: newVertices,
         };
       }
+    });
+  },
+
+  setDecks: (player, siteCards, spellCards) => {
+    set(() => {
+      const siteDeckKey = player === 'player' ? 'playerSiteDeck' : 'opponentSiteDeck';
+      const spellDeckKey = player === 'player' ? 'playerSpellDeck' : 'opponentSpellDeck';
+
+      return {
+        [siteDeckKey]: siteCards,
+        [spellDeckKey]: spellCards,
+      } as Partial<GameState>;
     });
   },
 }));

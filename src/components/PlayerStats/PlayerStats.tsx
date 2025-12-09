@@ -1,4 +1,6 @@
 import { useGameStore } from '../../hooks/useGameState';
+import { useGameActions } from '../../hooks/useGameActions';
+import { useMultiplayerStore } from '../../hooks/useMultiplayer';
 import { Player, Thresholds } from '../../types';
 
 interface ClickableValueProps {
@@ -68,10 +70,12 @@ interface PlayerStatBlockProps {
   mana: number;
   manaTotal: number;
   thresholds: Thresholds;
+  dataPlayer: Player; // The actual player in game state (for actions)
 }
 
-function PlayerStatBlock({ player, label, life, mana, manaTotal, thresholds }: PlayerStatBlockProps) {
-  const { adjustLife, adjustMana, adjustManaTotal } = useGameStore();
+function PlayerStatBlock({ player, label, life, mana, manaTotal, thresholds, dataPlayer }: PlayerStatBlockProps) {
+  // Broadcasted actions
+  const { adjustLife, adjustMana, adjustManaTotal } = useGameActions();
 
   return (
     <div
@@ -102,8 +106,8 @@ function PlayerStatBlock({ player, label, life, mana, manaTotal, thresholds }: P
           <ClickableValue
             value={life}
             color="#ef4444"
-            onIncrement={() => adjustLife(player, 1)}
-            onDecrement={() => adjustLife(player, -1)}
+            onIncrement={() => adjustLife(dataPlayer, 1)}
+            onDecrement={() => adjustLife(dataPlayer, -1)}
           />
         </div>
         {/* Mana */}
@@ -116,16 +120,16 @@ function PlayerStatBlock({ player, label, life, mana, manaTotal, thresholds }: P
               value={mana}
               color="#3b82f6"
               size="small"
-              onIncrement={() => adjustMana(player, 1)}
-              onDecrement={() => adjustMana(player, -1)}
+              onIncrement={() => adjustMana(dataPlayer, 1)}
+              onDecrement={() => adjustMana(dataPlayer, -1)}
             />
             <span style={{ fontSize: '18px', color: '#6b7280' }}>/</span>
             <ClickableValue
               value={manaTotal}
               color="#60a5fa"
               size="small"
-              onIncrement={() => adjustManaTotal(player, 1)}
-              onDecrement={() => adjustManaTotal(player, -1)}
+              onIncrement={() => adjustManaTotal(dataPlayer, 1)}
+              onDecrement={() => adjustManaTotal(dataPlayer, -1)}
             />
           </div>
         </div>
@@ -226,6 +230,7 @@ function PlayerStatBlock({ player, label, life, mana, manaTotal, thresholds }: P
 }
 
 export function PlayerStats() {
+  // Read-only state from store
   const {
     playerLife,
     opponentLife,
@@ -236,6 +241,28 @@ export function PlayerStats() {
     playerThresholds,
     opponentThresholds,
   } = useGameStore();
+
+  // Perspective mapping for multiplayer
+  const { localPlayer, connectionStatus } = useMultiplayerStore();
+  const isMultiplayer = connectionStatus === 'connected';
+  const isGuest = isMultiplayer && localPlayer === 'opponent';
+
+  // Map UI positions to data players
+  // "my" stats (bottom) = localPlayer's stats
+  // "their" stats (top) = opponent's stats
+  const myLife = isGuest ? opponentLife : playerLife;
+  const myMana = isGuest ? opponentMana : playerMana;
+  const myManaTotal = isGuest ? opponentManaTotal : playerManaTotal;
+  const myThresholds = isGuest ? opponentThresholds : playerThresholds;
+
+  const theirLife = isGuest ? playerLife : opponentLife;
+  const theirMana = isGuest ? playerMana : opponentMana;
+  const theirManaTotal = isGuest ? playerManaTotal : opponentManaTotal;
+  const theirThresholds = isGuest ? playerThresholds : opponentThresholds;
+
+  // Data player for actions (which slot in state to modify)
+  const myDataPlayer: Player = isGuest ? 'opponent' : 'player';
+  const theirDataPlayer: Player = isGuest ? 'player' : 'opponent';
 
   return (
     <div
@@ -249,18 +276,20 @@ export function PlayerStats() {
       <PlayerStatBlock
         player="opponent"
         label="Opponent"
-        life={opponentLife}
-        mana={opponentMana}
-        manaTotal={opponentManaTotal}
-        thresholds={opponentThresholds}
+        life={theirLife}
+        mana={theirMana}
+        manaTotal={theirManaTotal}
+        thresholds={theirThresholds}
+        dataPlayer={theirDataPlayer}
       />
       <PlayerStatBlock
         player="player"
-        label="Player"
-        life={playerLife}
-        mana={playerMana}
-        manaTotal={playerManaTotal}
-        thresholds={playerThresholds}
+        label="You"
+        life={myLife}
+        mana={myMana}
+        manaTotal={myManaTotal}
+        thresholds={myThresholds}
+        dataPlayer={myDataPlayer}
       />
     </div>
   );

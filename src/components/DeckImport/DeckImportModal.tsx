@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { Modal } from '../Modal';
 import { fetchDeck, CuriosaApiError } from '../../services/curiosaApi';
 import { transformCuriosaDeck, extractDeckId } from '../../utils/cardTransform';
-import { useGameStore } from '../../hooks/useGameState';
+import { useGameActions } from '../../hooks/useGameActions';
+import { useMultiplayerStore } from '../../hooks/useMultiplayer';
 import type { Player } from '../../types';
 
 interface DeckImportModalProps {
@@ -17,7 +18,9 @@ export function DeckImportModal({ isOpen, onClose, player }: DeckImportModalProp
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
 
-  const { importDeck, clearDecks } = useGameStore();
+  const { importDeck, clearDecks } = useGameActions();
+  const { localPlayer, connectionStatus } = useMultiplayerStore();
+  const isMultiplayer = connectionStatus === 'connected';
 
   const handleImport = async () => {
     if (!deckInput.trim()) {
@@ -32,17 +35,22 @@ export function DeckImportModal({ isOpen, onClose, player }: DeckImportModalProp
     try {
       const deckId = extractDeckId(deckInput);
       const response = await fetchDeck(deckId);
-      const transformed = transformCuriosaDeck(response, player);
+
+      // In multiplayer, always import to your own deck (localPlayer)
+      // In single player, use the player prop (which deck zone was clicked)
+      const effectivePlayer = isMultiplayer ? localPlayer : player;
+
+      const transformed = transformCuriosaDeck(response, effectivePlayer);
 
       // Clear existing decks first
-      clearDecks(player);
+      clearDecks(effectivePlayer);
 
       // Import the new deck
       importDeck(
         transformed.siteCards,
         transformed.spellCards,
         transformed.avatar,
-        player
+        effectivePlayer
       );
 
       setSuccess(true);

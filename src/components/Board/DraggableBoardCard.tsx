@@ -1,6 +1,7 @@
 import { useDraggable } from '@dnd-kit/core';
 import { CardInstance } from '../../types';
 import { Card } from '../Card';
+import { useMultiplayerStore } from '../../hooks/useMultiplayer';
 
 interface DraggableBoardCardProps {
   card: CardInstance;
@@ -10,6 +11,7 @@ interface DraggableBoardCardProps {
   isSelected?: boolean;
   isHovered?: boolean;
   showAsHorizontal?: boolean;
+  isOpponentCard?: boolean; // Rotate 180deg if this card belongs to opponent
 }
 
 export function DraggableBoardCard({
@@ -20,17 +22,29 @@ export function DraggableBoardCard({
   isSelected,
   isHovered,
   showAsHorizontal,
+  isOpponentCard = false,
 }: DraggableBoardCardProps) {
+  // Check actual ownership for drag permission (not visual rotation)
+  const { localPlayer, connectionStatus } = useMultiplayerStore();
+  const isMultiplayer = connectionStatus === 'connected';
+  const isMyCard = card.owner === localPlayer;
+  const canDrag = !isMultiplayer || isMyCard;
+
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: `board-${card.id}`,
     data: { card, source: 'board', sourcePosition },
+    disabled: !canDrag,
   });
 
+  // Opponent's cards are rotated 180deg so they face the opponent
+  const ownerRotation = isOpponentCard ? 'rotate(180deg)' : '';
   const style = transform
     ? {
-        transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
+        transform: `${ownerRotation} translate3d(${transform.x}px, ${transform.y}px, 0)`,
         zIndex: isDragging ? 1000 : undefined,
       }
+    : isOpponentCard
+    ? { transform: ownerRotation }
     : undefined;
 
   return (

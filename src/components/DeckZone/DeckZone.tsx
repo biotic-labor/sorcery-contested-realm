@@ -1,5 +1,7 @@
 import { useDroppable } from '@dnd-kit/core';
 import { useGameStore } from '../../hooks/useGameState';
+import { useGameActions } from '../../hooks/useGameActions';
+import { useMultiplayerStore } from '../../hooks/useMultiplayer';
 import { Player, DeckType, CardInstance } from '../../types';
 
 interface DeckZoneProps {
@@ -9,13 +11,28 @@ interface DeckZoneProps {
 }
 
 const CARD_BACK_URLS = {
-  site: 'https://d27a44hjr9gen3.cloudfront.net/assets/tts/cardbacks/cardback-atlas.png',
-  spell: 'https://d27a44hjr9gen3.cloudfront.net/assets/tts/cardbacks/cardback-spellbook.png',
+  site: '/assets/card-backs/cardback-atlas.png',
+  spell: '/assets/card-backs/cardback-spellbook.png',
 };
 
 export function DeckZone({ player, deckType, cards }: DeckZoneProps) {
-  const { shuffleDeck, setHoveredDeck, shufflingDeck } = useGameStore();
-  const isShuffling = shufflingDeck?.player === player && shufflingDeck?.deckType === deckType;
+  // Read-only state from store
+  const { setHoveredDeck, shufflingDeck } = useGameStore();
+
+  // Broadcasted actions
+  const { shuffleDeck } = useGameActions();
+
+  // Perspective mapping for multiplayer
+  const { localPlayer, connectionStatus } = useMultiplayerStore();
+  const isMultiplayer = connectionStatus === 'connected';
+  const isGuest = isMultiplayer && localPlayer === 'opponent';
+
+  // Map UI player to data player (guest's "player" deck is stored in "opponent" slot)
+  const dataPlayer = isGuest
+    ? (player === 'player' ? 'opponent' : 'player')
+    : player;
+
+  const isShuffling = shufflingDeck?.player === dataPlayer && shufflingDeck?.deckType === deckType;
   const dropId = `deck-${player}-${deckType}`;
 
   const { isOver, setNodeRef } = useDroppable({
@@ -24,6 +41,10 @@ export function DeckZone({ player, deckType, cards }: DeckZoneProps) {
 
   const cardBackUrl = CARD_BACK_URLS[deckType];
   const borderColor = isOver ? '#22c55e' : '#6b7280';
+
+  const handleShuffle = () => {
+    shuffleDeck(dataPlayer, deckType);
+  };
 
   return (
     <div
@@ -92,7 +113,7 @@ export function DeckZone({ player, deckType, cards }: DeckZoneProps) {
       <button
         onClick={(e) => {
           e.stopPropagation();
-          shuffleDeck(player, deckType);
+          handleShuffle();
         }}
         style={{
           position: 'absolute',

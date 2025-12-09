@@ -52,6 +52,7 @@ export interface CardInstance {
   variant: CardVariant;
   rotation: number; // 0 or 90 degrees
   owner: 'player' | 'opponent';
+  sourceDeck?: 'site' | 'spell'; // Which deck the card was drawn from (for hidden card backs)
 }
 
 // Helper to get image URL from slug

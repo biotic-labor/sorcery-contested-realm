@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import { useGameStore } from '../../hooks/useGameState';
+import { useMultiplayerStore } from '../../hooks/useMultiplayer';
 import { positionKey, vertexKey, parseVertexKey, CardInstance } from '../../types';
 import { BoardSite } from './BoardSite';
 import { BoardVertex } from './BoardVertex';
@@ -28,6 +29,11 @@ export function Board() {
     hoverCard,
   } = useGameStore();
 
+  const { localPlayer, connectionStatus } = useMultiplayerStore();
+
+  // In multiplayer, player 2 (opponent perspective) sees the board rotated 180 degrees
+  const isRotated = connectionStatus === 'connected' && localPlayer === 'opponent';
+
   const handleCardClick = (card: CardInstance) => {
     selectCard(selectedCard?.id === card.id ? null : card);
   };
@@ -43,14 +49,24 @@ export function Board() {
   // Calculate which sites should be highlighted due to vertex hover
   const highlightedSites = hoveredVertexId ? getAdjacentSites(hoveredVertexId) : new Set<string>();
 
+  // Labels are outside the rotated board, so they stay fixed
+  // Both players see "Opponent Side" at top, "Your Side" at bottom
+  const topLabel = 'Opponent Side';
+  const bottomLabel = 'Your Side';
+
   return (
     <div className="flex flex-col items-center gap-4 p-4">
       <div className="text-sm text-gray-400 mb-2">
-        Opponent Side
+        {topLabel}
       </div>
 
       {/* Board container with relative positioning for vertices */}
-      <div style={{ position: 'relative' }}>
+      <div
+        style={{
+          position: 'relative',
+          transform: isRotated ? 'rotate(180deg)' : undefined,
+        }}
+      >
         {/* 4 rows x 5 columns grid */}
         <div
           style={{
@@ -87,6 +103,7 @@ export function Board() {
                   isAvatarZone={isAvatarZone}
                   avatarZoneOwner={avatarZoneOwner}
                   isHighlightedByVertex={highlightedSites.has(siteKey)}
+                  labelCounterRotate={isRotated}
                 />
               );
             })
@@ -138,7 +155,7 @@ export function Board() {
       </div>
 
       <div className="text-sm text-gray-400 mt-2">
-        Player Side
+        {bottomLabel}
       </div>
     </div>
   );

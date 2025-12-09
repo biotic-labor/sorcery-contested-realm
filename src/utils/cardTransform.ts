@@ -13,8 +13,8 @@ import type {
 
 let cardIdCounter = 1000; // Start at 1000 to avoid collision with existing mock cards
 
-function generateCardId(): string {
-  return `card-${++cardIdCounter}`;
+function generateCardId(owner: 'player' | 'opponent'): string {
+  return `${owner}-card-${++cardIdCounter}`;
 }
 
 function mapRarity(rarity: string | null): Rarity {
@@ -74,7 +74,7 @@ function transformCuriosaEntry(
   const instances: CardInstance[] = [];
   for (let i = 0; i < quantity; i++) {
     instances.push({
-      id: generateCardId(),
+      id: generateCardId(owner),
       cardData,
       variant: cardVariant,
       rotation: 0,

@@ -1,8 +1,10 @@
 import { useDroppable } from '@dnd-kit/core';
 import { SortableContext, horizontalListSortingStrategy } from '@dnd-kit/sortable';
 import { useGameStore } from '../../hooks/useGameState';
+import { useMultiplayerStore } from '../../hooks/useMultiplayer';
 import { CardInstance, Player } from '../../types';
 import { SortableCard } from './SortableCard';
+import { CardBack } from '../Card';
 
 interface HandProps {
   player: Player;
@@ -21,8 +23,24 @@ export function Hand({ player, size = 'medium' }: HandProps) {
     hoverCard,
   } = useGameStore();
 
-  const hand = player === 'player' ? playerHand : opponentHand;
+  const { localPlayer, connectionStatus } = useMultiplayerStore();
+  const isMultiplayer = connectionStatus === 'connected';
+
+  // Perspective mapping - guest sees swapped data sources
+  // Game state uses "player" for host's data, "opponent" for guest's data
+  // UI uses player="player" for bottom (your hand), player="opponent" for top (their hand)
+  const isGuest = isMultiplayer && localPlayer === 'opponent';
+  const hand = player === 'player'
+    ? (isGuest ? opponentHand : playerHand)   // Bottom hand: guest's cards are in opponentHand
+    : (isGuest ? playerHand : opponentHand);  // Top hand: host's cards are in playerHand
   const isPlayerHand = player === 'player';
+
+  // In multiplayer, determine if this is the local player's hand or the remote opponent's
+  // Local player sees their cards, remote opponent's cards are hidden
+  // player prop is UI position: "player" = bottom (your hand), "opponent" = top (their hand)
+  // Bottom hand is always the local player's hand, top is always opponent's
+  const isLocalPlayersHand = !isMultiplayer || player === 'player';
+  const showAsCardBacks = isMultiplayer && !isLocalPlayersHand;
 
   const handleCardClick = (card: CardInstance) => {
     selectCard(selectedCard?.id === card.id ? null : card);
@@ -60,26 +78,36 @@ export function Hand({ player, size = 'medium' }: HandProps) {
       `}
     >
       <div className="text-sm text-gray-400 mb-2">
-        {isPlayerHand ? 'Your Hand' : "Opponent's Hand"} ({hand.length} cards)
+        {isLocalPlayersHand ? 'Your Hand' : "Opponent's Hand"} ({hand.length} cards)
       </div>
 
-      <SortableContext items={hand.map(c => c.id)} strategy={horizontalListSortingStrategy}>
+      {showAsCardBacks ? (
+        // Show card backs for opponent in multiplayer (site vs spell backs)
         <div className={`flex ${gap} overflow-x-auto pb-2`}>
-          {hand.map((card, index) => (
-            <SortableCard
-              key={card.id}
-              card={card}
-              index={index}
-              player={player}
-              size={size}
-              isSelected={selectedCard?.id === card.id}
-              isHovered={hoveredCard?.id === card.id}
-              onClick={() => handleCardClick(card)}
-              onHover={hoverCard}
-            />
+          {hand.map((card) => (
+            <CardBack key={card.id} size={size} deckType={card.sourceDeck} />
           ))}
         </div>
-      </SortableContext>
+      ) : (
+        // Show actual cards for local player
+        <SortableContext items={hand.map(c => c.id)} strategy={horizontalListSortingStrategy}>
+          <div className={`flex ${gap} overflow-x-auto pb-2`}>
+            {hand.map((card, index) => (
+              <SortableCard
+                key={card.id}
+                card={card}
+                index={index}
+                player={player}
+                size={size}
+                isSelected={selectedCard?.id === card.id}
+                isHovered={hoveredCard?.id === card.id}
+                onClick={() => handleCardClick(card)}
+                onHover={hoverCard}
+              />
+            ))}
+          </div>
+        </SortableContext>
+      )}
     </div>
   );
 }

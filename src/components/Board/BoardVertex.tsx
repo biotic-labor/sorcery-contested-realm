@@ -1,6 +1,7 @@
 import React from 'react';
 import { useDroppable } from '@dnd-kit/core';
 import { vertexKey, CardInstance } from '../../types';
+import { useMultiplayerStore } from '../../hooks/useMultiplayer';
 import { DraggableBoardCard } from './DraggableBoardCard';
 
 interface BoardVertexProps {
@@ -26,6 +27,15 @@ export function BoardVertex({
 }: BoardVertexProps) {
   const id = vertexKey(row, col);
   const { isOver, setNodeRef } = useDroppable({ id });
+
+  // Get multiplayer state to determine card ownership
+  const { localPlayer, connectionStatus } = useMultiplayerStore();
+  const isMultiplayer = connectionStatus === 'connected';
+
+  // When board is rotated (guest), flip the card rotation logic
+  const isBoardRotated = isMultiplayer && localPlayer === 'opponent';
+  const isOpponentCard = (card: CardInstance) =>
+    isMultiplayer && (isBoardRotated ? card.owner === localPlayer : card.owner !== localPlayer);
 
   // Notify parent when drag hover state changes
   const prevIsOver = React.useRef(false);
@@ -65,6 +75,7 @@ export function BoardVertex({
             isHovered={hoveredCardId === unit.id}
             onClick={() => onCardClick?.(unit)}
             onHover={onCardHover}
+            isOpponentCard={isOpponentCard(unit)}
           />
         </div>
       ))}

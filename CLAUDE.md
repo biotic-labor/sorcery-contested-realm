@@ -4,7 +4,7 @@ Source of truth for Claude Code when working with this codebase.
 
 ## Project Overview
 
-Browser-based 1v1 tabletop game client for Sorcery: Contested Realm TCG. MVP phase with local hot-seat play. Future: P2P multiplayer via PeerJS.
+Browser-based 1v1 tabletop game client for Sorcery: Contested Realm TCG. Supports P2P multiplayer via PeerJS.
 
 ## Commands
 
@@ -34,6 +34,69 @@ Zustand store in `src/hooks/useGameState.ts`:
 - Life, mana, thresholds, turn state
 - `hoveredCard`, `selectedCard`, `hoveredDeck` for interactions
 
+### useGameStore vs useGameActions (CRITICAL for Multiplayer)
+
+**`useGameStore`** - Use for:
+- Reading state: `board`, `avatars`, `vertices`, `playerHand`, `opponentHand`, `currentTurn`, etc.
+- UI-only actions that don't affect game state: `hoverCard`, `selectCard`, `setHoveredDeck`
+
+**`useGameActions`** - Use for ALL actions that modify shared game state:
+- Card placement/movement: `placeCardOnSite`, `placeUnitOnSite`, `moveCard`, `placeAvatar`
+- Card state changes: `rotateCard`, `toggleCardUnder`
+- Deck operations: `drawCards`, `shuffleDeck`, `putCardOnTop`, `putCardOnBottom`
+- Player stats: `adjustLife`, `adjustMana`, `adjustManaTotal`
+- Turn management: `startTurn`, `endTurn`
+- Graveyard: `addToGraveyard`, `removeFromGraveyard`
+
+`useGameActions` wraps store actions to broadcast them over P2P in multiplayer mode. Using `useGameStore` directly for game-modifying actions will NOT sync to opponent.
+
+### Multiplayer Perspective Mapping
+
+Game state uses canonical player slots:
+- `"player"` = host's data (hands, decks, life, etc.)
+- `"opponent"` = guest's data
+
+UI components use positional props:
+- `player="player"` = bottom of screen (YOUR stuff)
+- `player="opponent"` = top of screen (THEIR stuff)
+
+**UI Reading State** - For guest, swap which state shows where:
+```typescript
+const isGuest = isMultiplayer && localPlayer === 'opponent';
+const myHand = isGuest ? opponentHand : playerHand;
+const theirHand = isGuest ? playerHand : opponentHand;
+```
+
+**UI Calling Actions** - Map UI player to data player:
+```typescript
+const dataPlayer = isGuest
+  ? (uiPlayer === 'player' ? 'opponent' : 'player')
+  : uiPlayer;
+```
+
+### Multiplayer Action Handlers (CRITICAL - NO SWAP)
+
+In `useMultiplayer.ts` `applyRemoteAction()`, **DO NOT swap the player parameter** for data-slot actions. Data must go into the SAME slot on both clients:
+- Host imports deck → `playerSiteDeck` on BOTH clients
+- Guest imports deck → `opponentSiteDeck` on BOTH clients
+
+The UI perspective mapping handles displaying the right data in the right position.
+
+**Actions that must NOT swap player:**
+- `drawCards`, `shuffleDeck`, `putCardOnTop`, `putCardOnBottom`
+- `addToHand`, `removeFromHand`, `reorderHand`
+- `addToGraveyard`, `removeFromGraveyard`
+- `adjustLife`, `adjustMana`, `adjustManaTotal`
+- `deckImported`, `startTurn`
+
+**Board placement actions - DO NOT swap card owner:**
+- `placeCardOnSite`, `placeUnitOnSite`, `placeUnitOnVertex` - card `owner` must remain canonical for rotation logic
+
+**Actions that operate on shared board state (no player param or use cardId):**
+- `rotateCard`, `toggleCardUnder` - find card by ID
+- `moveCard`, `moveAvatar` - use board position
+- `removeCardFromBoard`, `removeCardFromVertex` - use position/vertexKey
+
 ### Drag & Drop
 Uses @dnd-kit/core. Cards track `source` ('hand' | 'board') and `sourcePosition` in drag data.
 
@@ -43,6 +106,21 @@ Drop targets:
 - Decks: `"deck-player-site"` or `"deck-opponent-spell"`
 - Discard: `"discard-player"` or `"discard-opponent"`
 - Hands: `"hand-player"` or `"hand-opponent"`
+
+**Player 2 Board Rotation & Drag Offset Fix:**
+Player 2's board is rotated 180deg via CSS. This causes dnd-kit's DragOverlay to be offset from the cursor when dragging board cards. A custom modifier in `Game.tsx` (`rotatedBoardModifier`) compensates by shifting the overlay by the card's dimensions when Player 2 drags from the board.
+
+**Card Ownership vs Visual Rotation:**
+- `card.owner` indicates which player's data slot the card belongs to (canonical)
+- `isOpponentCard` prop on `DraggableBoardCard` controls 180deg visual rotation (so cards face their owner)
+- Drag permission uses actual ownership: `canDrag = card.owner === localPlayer`
+- These are separate concerns: a card can be visually rotated but still draggable by its owner
+
+**Unit Stacking Direction:**
+In `BoardSite.tsx`, units stack based on ownership:
+- Your cards: stack toward bottom-right
+- Opponent cards: stack toward upper-left
+The `rotationFix` variable accounts for Player 2's rotated board when calculating offsets.
 
 ### Card Types
 - **Sites** - Rendered horizontally (landscape), one per grid cell, provides mana + thresholds
@@ -84,7 +162,9 @@ src/
     PlayerStats/     # Stats panel
     CardPreview/     # Large card preview on hover
   hooks/
-    useGameState.ts  # Zustand store - ALL game state and actions
+    useGameState.ts  # Zustand store - state and raw actions
+    useGameActions.ts # Multiplayer-aware actions (broadcasts to opponent)
+    useMultiplayer.ts # P2P connection state and messaging
     useHotkeys.ts    # Keyboard shortcuts
   types/
     card.ts          # CardInstance, CardData, Thresholds
@@ -99,6 +179,22 @@ server/
   index.ts           # Express entry (port 3001)
   routes/curiosa.ts  # GET /api/curiosa/deck/:deckId proxy
 ```
+
+### Multiplayer Drag Visualization
+
+**GhostCard** (`src/components/GhostCard/`):
+Shows a semi-transparent card where the opponent is dragging. Receives position via P2P `drag_move` messages. Hidden when local player is dragging (`isLocalDragging` prop) to prevent visual conflicts.
+
+**Card ID Generation** (`src/utils/cardTransform.ts`):
+Card IDs are prefixed with owner: `${owner}-card-${counter}` (e.g., `player-card-1001`). This prevents ID collisions when both players import decks, ensuring each player can only drag their own cards.
+
+### Known Issue: Hand Sync with Hidden Cards
+
+**Problem:** Opponent's hand shows hidden placeholder cards with IDs like `hidden-player-site-0-timestamp`, but when cards are played, `removeFromHand` broadcasts the real card ID (e.g., `player-card-1001`). The opponent's client can't find that ID in their representation of the hand.
+
+**Impact:** Opponent's hand count doesn't update when cards are played from hand.
+
+**Potential Fix:** For remote `removeFromHand` actions, if the card ID isn't found, remove the first hidden card from the hand instead. Or: broadcast an index instead of card ID for hand operations.
 
 ## Deck Import
 
@@ -120,11 +216,3 @@ Frontend -> Vite Proxy -> Express (3001) -> curiosa.io/api/trpc/...
 
 Expects local assets at `/public/assets/cards/{slug}.png`. Falls back to colored placeholder on error. Card slugs come from Curiosa variant data.
 
-## Store Actions (Key)
-
-**Placement**: `placeCardOnSite`, `placeUnitOnSite`, `placeUnitOnVertex`, `placeAvatar`
-**Movement**: `moveCard`, `moveAvatar`, `removeFromHand`, `removeCardFromBoard`, `removeCardFromVertex`
-**Card State**: `rotateCard`, `toggleCardUnder`, `untapAllCards`
-**Decks**: `drawCards`, `putCardOnTop`, `putCardOnBottom`, `shuffleDeck`
-**Graveyard**: `addToGraveyard`, `removeFromGraveyard`
-**Game**: `startTurn`, `endTurn`, `adjustLife`, `adjustMana`, `importDeck`, `clearDecks`
