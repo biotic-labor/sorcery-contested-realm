@@ -23,8 +23,9 @@ export function Hand({ player, size = 'medium' }: HandProps) {
     hoverCard,
   } = useGameStore();
 
-  const { localPlayer, connectionStatus } = useMultiplayerStore();
-  const isMultiplayer = connectionStatus === 'connected';
+  const { localPlayer, connectionStatus, gameCode } = useMultiplayerStore();
+  // Use gameCode to check if we're in a multiplayer game (persists through disconnects)
+  const isMultiplayer = connectionStatus === 'connected' || (connectionStatus === 'disconnected' && !!gameCode);
 
   // Perspective mapping - guest sees swapped data sources
   // Game state uses "player" for host's data, "opponent" for guest's data

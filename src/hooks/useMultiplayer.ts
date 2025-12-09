@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { peerService } from '../services/peerService';
-import { useGameStore } from './useGameState';
+import { useGameStore, loadGuestState, saveGuestState, clearGuestState } from './useGameState';
 import {
   MultiplayerState,
   GameMessage,
@@ -12,6 +12,7 @@ import {
   generateDefaultNickname,
   ConnectionStatus,
   OpponentDragState,
+  OpponentSearchState,
 } from '../types/multiplayer';
 import { Player, CardInstance } from '../types';
 
@@ -40,6 +41,10 @@ interface MultiplayerActions {
 
   // Opponent drag visualization
   setOpponentDrag: (drag: OpponentDragState | null) => void;
+
+  // Opponent deck search visualization
+  setOpponentSearching: (search: OpponentSearchState | null) => void;
+  sendSearchingDeck: (deckType: 'site' | 'spell', searching: boolean, count?: number) => void;
 
   // State sync
   sendFullSync: () => void;
@@ -70,6 +75,8 @@ function getSerializedGameState(): SerializedGameState {
     opponentSpellDeck: state.opponentSpellDeck,
     playerGraveyard: state.playerGraveyard,
     opponentGraveyard: state.opponentGraveyard,
+    playerSpellStack: state.playerSpellStack,
+    opponentSpellStack: state.opponentSpellStack,
     playerLife: state.playerLife,
     opponentLife: state.opponentLife,
     playerMana: state.playerMana,
@@ -95,6 +102,8 @@ export function swapPerspective(state: SerializedGameState): SerializedGameState
     opponentSpellDeck: state.playerSpellDeck,
     playerGraveyard: state.opponentGraveyard,
     opponentGraveyard: state.playerGraveyard,
+    playerSpellStack: state.opponentSpellStack,
+    opponentSpellStack: state.playerSpellStack,
     playerLife: state.opponentLife,
     opponentLife: state.playerLife,
     playerMana: state.opponentMana,
@@ -359,6 +368,15 @@ function applyRemoteAction(
       gameStore.putCardOnBottom(card, player, payload.deckType as 'site' | 'spell');
       break;
     }
+    case 'returnCardsToDeck': {
+      // DO NOT swap - data should go in same slot on both clients
+      const cards = payload.cards as CardInstance[];
+      const player = payload.player as Player;
+      const deckType = payload.deckType as 'site' | 'spell';
+      const position = payload.position as 'top' | 'bottom';
+      gameStore.returnCardsToDeck(cards, player, deckType, position);
+      break;
+    }
     case 'addToGraveyard': {
       // DO NOT swap - data should go in same slot on both clients
       const card = payload.card as CardInstance;
@@ -370,6 +388,31 @@ function applyRemoteAction(
       // DO NOT swap - data should go in same slot on both clients
       const player = payload.player as Player;
       gameStore.removeFromGraveyard(payload.cardId as string, player);
+      break;
+    }
+    case 'addToSpellStack': {
+      // DO NOT swap - data should go in same slot on both clients
+      const card = payload.card as CardInstance;
+      const player = payload.player as Player;
+      gameStore.addToSpellStack(card, player);
+      addLogEntry({
+        type: 'action',
+        player: opponentPlayer,
+        nickname: opponentNickname,
+        message: `cast ${card.cardData?.name || 'a spell'}`,
+      });
+      break;
+    }
+    case 'removeFromSpellStack': {
+      // DO NOT swap - data should go in same slot on both clients
+      const player = payload.player as Player;
+      gameStore.removeFromSpellStack(payload.cardId as string, player);
+      break;
+    }
+    case 'clearSpellStack': {
+      // DO NOT swap - data should go in same slot on both clients
+      const player = payload.player as Player;
+      gameStore.clearSpellStack(player);
       break;
     }
     case 'placeAvatar': {
@@ -435,6 +478,7 @@ export const useMultiplayerStore = create<MultiplayerState & MultiplayerActions>
       lastSequence: 0,
       pendingAcks: new Set<number>(),
       opponentDrag: null,
+      opponentSearching: null,
       gameLog: [],
       savedGames: [],
       disconnectTime: null,
@@ -454,9 +498,26 @@ export const useMultiplayerStore = create<MultiplayerState & MultiplayerActions>
 
         peerService.setOnConnected(() => {
           const state = get();
+          const gameState = useGameStore.getState();
+
+          // Check if game state exists (this is a reconnection)
+          // Include turnNumber > 1 to catch late-game scenarios where decks/board may be empty
+          const hasGameState =
+            gameState.turnNumber > 1 ||
+            gameState.playerSiteDeck.length > 0 ||
+            gameState.opponentSiteDeck.length > 0 ||
+            gameState.playerHand.length > 0 ||
+            gameState.opponentHand.length > 0 ||
+            gameState.playerGraveyard.length > 0 ||
+            gameState.opponentGraveyard.length > 0 ||
+            gameState.board.some((row) =>
+              row.some((cell) => cell.siteCard || cell.units.length > 0)
+            );
+
           set({
             connectionStatus: 'connected',
             opponentPeerId: peerService.getOpponentPeerId(),
+            disconnectTime: null,
           });
 
           // Send hello message
@@ -465,6 +526,17 @@ export const useMultiplayerStore = create<MultiplayerState & MultiplayerActions>
             nickname: state.nickname,
             peerId: state.myPeerId!,
           });
+
+          // If this is a reconnection, sync the full game state to the returning guest
+          if (hasGameState) {
+            get().sendFullSync();
+            get().addLogEntry({
+              type: 'system',
+              player: null,
+              nickname: null,
+              message: 'Opponent reconnected',
+            });
+          }
         });
 
         peerService.setOnMessage((message) => {
@@ -551,6 +623,9 @@ export const useMultiplayerStore = create<MultiplayerState & MultiplayerActions>
             opponentPeerId: code, // Host's peer ID is the game code
           });
 
+          // Set up auto-save for guest's private state
+          setupGuestStateAutoSave(code);
+
           // Send hello message
           const state = get();
           peerService.send({
@@ -574,6 +649,7 @@ export const useMultiplayerStore = create<MultiplayerState & MultiplayerActions>
 
       disconnect: () => {
         peerService.cleanup();
+        cleanupGuestStateAutoSave();
         set({
           connectionStatus: 'disconnected',
           opponentPeerId: null,
@@ -662,6 +738,22 @@ export const useMultiplayerStore = create<MultiplayerState & MultiplayerActions>
 
       setOpponentDrag: (drag) => {
         set({ opponentDrag: drag });
+      },
+
+      setOpponentSearching: (search) => {
+        set({ opponentSearching: search });
+      },
+
+      sendSearchingDeck: (deckType, searching, count) => {
+        const state = get();
+        const message: GameMessage = {
+          type: 'searching_deck',
+          player: state.localPlayer,
+          deckType,
+          searching,
+          count,
+        };
+        peerService.send(message);
       },
 
       sendFullSync: () => {
@@ -809,11 +901,75 @@ export const useMultiplayerStore = create<MultiplayerState & MultiplayerActions>
             });
             break;
 
-          case 'full_sync':
-            // Apply synced state with perspective swap - full implementation in Phase 3
-            // TODO: Apply swapPerspective(message.state) to game store
+          case 'full_sync': {
+            // Only guests should accept full_sync (hosts are authoritative)
+            if (state.localPlayer === 'player') {
+              // Host received full_sync from guest - ignore (potential cheat attempt)
+              console.warn('Ignoring full_sync from guest - host is authoritative');
+              break;
+            }
+            // Guest receives host's state. Try to restore our private data from:
+            // 1. Current memory (if we didn't refresh)
+            // 2. localStorage (if we refreshed but saved state exists)
+            // 3. Fall back to host's data (hidden placeholders)
+            const currentState = useGameStore.getState();
+            const hasMemoryData =
+              currentState.opponentHand.length > 0 ||
+              currentState.opponentSiteDeck.length > 0 ||
+              currentState.opponentSpellDeck.length > 0;
+
+            // Try localStorage if memory is empty
+            const savedState = !hasMemoryData && state.gameCode
+              ? loadGuestState(state.gameCode)
+              : null;
+
+            const mergedState: SerializedGameState = {
+              // Shared board state from host
+              board: message.state.board,
+              avatars: message.state.avatars,
+              vertices: message.state.vertices,
+              // Host's data (stored in player* slots)
+              playerHand: message.state.playerHand,
+              playerSiteDeck: message.state.playerSiteDeck,
+              playerSpellDeck: message.state.playerSpellDeck,
+              playerGraveyard: message.state.playerGraveyard,
+              playerSpellStack: message.state.playerSpellStack || [],
+              playerLife: message.state.playerLife,
+              playerMana: message.state.playerMana,
+              playerManaTotal: message.state.playerManaTotal,
+              playerThresholds: message.state.playerThresholds,
+              // Guest's own data - memory > localStorage > host's hidden cards
+              opponentHand: hasMemoryData
+                ? currentState.opponentHand
+                : (savedState?.opponentHand ?? message.state.opponentHand),
+              opponentSiteDeck: hasMemoryData
+                ? currentState.opponentSiteDeck
+                : (savedState?.opponentSiteDeck ?? message.state.opponentSiteDeck),
+              opponentSpellDeck: hasMemoryData
+                ? currentState.opponentSpellDeck
+                : (savedState?.opponentSpellDeck ?? message.state.opponentSpellDeck),
+              opponentGraveyard: hasMemoryData
+                ? currentState.opponentGraveyard
+                : (savedState?.opponentGraveyard ?? message.state.opponentGraveyard),
+              opponentSpellStack: message.state.opponentSpellStack || [],
+              opponentLife: message.state.opponentLife,
+              opponentMana: message.state.opponentMana,
+              opponentManaTotal: message.state.opponentManaTotal,
+              opponentThresholds: message.state.opponentThresholds,
+              // Turn state from host
+              currentTurn: message.state.currentTurn,
+              turnNumber: message.state.turnNumber,
+            };
+            useGameStore.getState().applyFullState(mergedState);
             peerService.send({ type: 'ack', sequence: message.sequence });
+            state.addLogEntry({
+              type: 'system',
+              player: null,
+              nickname: null,
+              message: savedState ? 'Game state restored' : 'Game state synchronized',
+            });
             break;
+          }
 
           case 'action':
             // Apply action from opponent with perspective swap
@@ -884,6 +1040,20 @@ export const useMultiplayerStore = create<MultiplayerState & MultiplayerActions>
             });
             gameStore.resetGame();
             break;
+
+          case 'searching_deck':
+            if (message.searching) {
+              set({
+                opponentSearching: {
+                  player: message.player,
+                  deckType: message.deckType,
+                  count: message.count,
+                },
+              });
+            } else {
+              set({ opponentSearching: null });
+            }
+            break;
         }
       },
 
@@ -903,6 +1073,39 @@ export const useMultiplayerStore = create<MultiplayerState & MultiplayerActions>
     }
   )
 );
+
+// Track subscription for guest state auto-save
+let guestStateSaveUnsubscribe: (() => void) | null = null;
+
+// Set up auto-save for guest's private state
+function setupGuestStateAutoSave(gameCode: string): void {
+  // Clean up any existing subscription
+  if (guestStateSaveUnsubscribe) {
+    guestStateSaveUnsubscribe();
+  }
+
+  // Subscribe to game store changes and save guest's private data
+  guestStateSaveUnsubscribe = useGameStore.subscribe((state, prevState) => {
+    // Only save if guest's private data changed
+    if (
+      state.opponentHand !== prevState.opponentHand ||
+      state.opponentSiteDeck !== prevState.opponentSiteDeck ||
+      state.opponentSpellDeck !== prevState.opponentSpellDeck ||
+      state.opponentGraveyard !== prevState.opponentGraveyard
+    ) {
+      saveGuestState(gameCode, state);
+    }
+  });
+}
+
+// Clean up guest state subscription
+function cleanupGuestStateAutoSave(): void {
+  if (guestStateSaveUnsubscribe) {
+    guestStateSaveUnsubscribe();
+    guestStateSaveUnsubscribe = null;
+  }
+  clearGuestState();
+}
 
 // Hook to check if it's the local player's turn
 export function useIsMyTurn(): boolean {

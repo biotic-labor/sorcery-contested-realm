@@ -1,8 +1,10 @@
+import { useState } from 'react';
 import { useDroppable } from '@dnd-kit/core';
 import { useGameStore } from '../../hooks/useGameState';
 import { useGameActions } from '../../hooks/useGameActions';
 import { useMultiplayerStore } from '../../hooks/useMultiplayer';
 import { Player, DeckType, CardInstance } from '../../types';
+import { DeckContextMenu, DeckSearchModal } from '../DeckSearch';
 
 interface DeckZoneProps {
   player: Player;
@@ -16,14 +18,19 @@ const CARD_BACK_URLS = {
 };
 
 export function DeckZone({ player, deckType, cards }: DeckZoneProps) {
+  // Local state for context menu and search modal
+  const [contextMenuPos, setContextMenuPos] = useState<{ x: number; y: number } | null>(null);
+  const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
+  const [searchCards, setSearchCards] = useState<CardInstance[]>([]);
+
   // Read-only state from store
-  const { setHoveredDeck, shufflingDeck } = useGameStore();
+  const { setHoveredDeck, shufflingDeck, peekDeck } = useGameStore();
 
   // Broadcasted actions
-  const { shuffleDeck } = useGameActions();
+  const { shuffleDeck, returnCardsToDeck, putCardOnTop, putCardOnBottom, addToHand, addToSpellStack, placeCardOnSite } = useGameActions();
 
   // Perspective mapping for multiplayer
-  const { localPlayer, connectionStatus } = useMultiplayerStore();
+  const { localPlayer, connectionStatus, opponentSearching, sendSearchingDeck } = useMultiplayerStore();
   const isMultiplayer = connectionStatus === 'connected';
   const isGuest = isMultiplayer && localPlayer === 'opponent';
 
@@ -31,6 +38,15 @@ export function DeckZone({ player, deckType, cards }: DeckZoneProps) {
   const dataPlayer = isGuest
     ? (player === 'player' ? 'opponent' : 'player')
     : player;
+
+  // Check if opponent is searching this deck (need to map opponent's player to UI position)
+  const isOpponentSearching =
+    opponentSearching &&
+    opponentSearching.deckType === deckType &&
+    // Opponent's "player" is our "opponent" UI slot
+    (isGuest
+      ? (opponentSearching.player === 'player' ? 'opponent' : 'player')
+      : opponentSearching.player) === player;
 
   const isShuffling = shufflingDeck?.player === dataPlayer && shufflingDeck?.deckType === deckType;
   const dropId = `deck-${player}-${deckType}`;
@@ -46,12 +62,70 @@ export function DeckZone({ player, deckType, cards }: DeckZoneProps) {
     shuffleDeck(dataPlayer, deckType);
   };
 
+  const handleContextMenu = (e: React.MouseEvent) => {
+    e.preventDefault();
+    // Only allow searching own deck
+    if (player !== 'player') return;
+    if (cards.length === 0) return;
+    setContextMenuPos({ x: e.clientX, y: e.clientY });
+  };
+
+  const handleContextMenuSelect = (count: number) => {
+    setContextMenuPos(null);
+    const actualCount = count === -1 ? cards.length : count;
+    const peekedCards = peekDeck(dataPlayer, deckType, actualCount);
+    setSearchCards(peekedCards);
+    setIsSearchModalOpen(true);
+    if (isMultiplayer) {
+      sendSearchingDeck(deckType, true, actualCount);
+    }
+  };
+
+  const handleCloseSearchModal = () => {
+    setIsSearchModalOpen(false);
+    setSearchCards([]);
+    if (isMultiplayer) {
+      sendSearchingDeck(deckType, false);
+    }
+  };
+
+  const handleReturnCards = (cardsToReturn: CardInstance[], position: 'top' | 'bottom') => {
+    returnCardsToDeck(cardsToReturn, dataPlayer, deckType, position);
+    handleCloseSearchModal();
+  };
+
+  const handleSendCardToDeck = (card: CardInstance, position: 'top' | 'bottom') => {
+    if (position === 'top') {
+      putCardOnTop(card, dataPlayer, deckType);
+    } else {
+      putCardOnBottom(card, dataPlayer, deckType);
+    }
+  };
+
+  const handleAddToHand = (card: CardInstance) => {
+    addToHand(card, dataPlayer);
+  };
+
+  const handlePlayToBoard = (card: CardInstance) => {
+    const cardType = card.cardData.guardian?.type;
+
+    if (cardType === 'Site') {
+      // Sites go directly to the board at bottom-right (row 3, col 4)
+      const position = { row: 3, col: 4 };
+      placeCardOnSite(card, position);
+    } else {
+      // Spells, Minions, Auras, Artifacts, Magics go to the spell stack (casting zone)
+      addToSpellStack(card, dataPlayer);
+    }
+  };
+
   return (
+    <>
     <div
       ref={setNodeRef}
       onMouseEnter={() => setHoveredDeck({ player, deckType })}
       onMouseLeave={() => setHoveredDeck(null)}
-      onContextMenu={(e) => e.preventDefault()}
+      onContextMenu={handleContextMenu}
       style={{
         width: '80px',
         height: '110px',
@@ -150,6 +224,46 @@ export function DeckZone({ player, deckType, cards }: DeckZoneProps) {
         />
       )}
 
+      {/* Opponent searching indicator */}
+      {isOpponentSearching && (
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.5)',
+            borderRadius: '4px',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            pointerEvents: 'none',
+          }}
+        >
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            style={{
+              width: '24px',
+              height: '24px',
+              color: '#fbbf24',
+              animation: 'blink 1s ease-in-out infinite',
+            }}
+          >
+            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+            <circle cx="12" cy="12" r="3" />
+          </svg>
+          {opponentSearching?.count && (
+            <div style={{ fontSize: '10px', color: '#fbbf24', marginTop: '2px' }}>
+              {opponentSearching.count === -1 ? 'All' : opponentSearching.count}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Hotkey hint */}
       <div
         style={{
@@ -163,5 +277,37 @@ export function DeckZone({ player, deckType, cards }: DeckZoneProps) {
         1-9
       </div>
     </div>
+
+    {/* Context menu */}
+    {contextMenuPos && (
+      <DeckContextMenu
+        x={contextMenuPos.x}
+        y={contextMenuPos.y}
+        deckSize={cards.length}
+        onSelect={handleContextMenuSelect}
+        onClose={() => setContextMenuPos(null)}
+      />
+    )}
+
+    {/* Search modal */}
+    <DeckSearchModal
+      isOpen={isSearchModalOpen}
+      cards={searchCards}
+      deckType={deckType}
+      onClose={handleCloseSearchModal}
+      onReturnCards={handleReturnCards}
+      onSendCardToDeck={handleSendCardToDeck}
+      onAddToHand={handleAddToHand}
+      onPlayToBoard={handlePlayToBoard}
+    />
+
+    {/* CSS for blinking animation */}
+    <style>{`
+      @keyframes blink {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.3; }
+      }
+    `}</style>
+    </>
   );
 }

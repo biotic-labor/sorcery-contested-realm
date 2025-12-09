@@ -49,6 +49,10 @@ export interface GameState {
   playerGraveyard: CardInstance[];
   opponentGraveyard: CardInstance[];
 
+  // Spell stacks (casting zone - cards being played before going to graveyard)
+  playerSpellStack: CardInstance[];
+  opponentSpellStack: CardInstance[];
+
   // Life totals
   playerLife: number;
   opponentLife: number;

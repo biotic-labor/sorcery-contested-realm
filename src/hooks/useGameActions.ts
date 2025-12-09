@@ -209,6 +209,18 @@ export function useGameActions() {
     broadcast('putCardOnBottom', { card: serializeCard(card), player, deckType });
   }, [gameStore, broadcast]);
 
+  // Deck search - peekDeck is local only (opponent shouldn't see cards)
+  // returnCardsToDeck broadcasts so opponent's deck state stays in sync
+  const returnCardsToDeck = useCallback((cards: CardInstance[], player: Player, deckType: DeckType, position: 'top' | 'bottom') => {
+    gameStore.returnCardsToDeck(cards, player, deckType, position);
+    broadcast('returnCardsToDeck', {
+      cards: cards.map(c => serializeCard(c)),
+      player,
+      deckType,
+      position,
+    });
+  }, [gameStore, broadcast]);
+
   // Graveyard
   const addToGraveyard = useCallback((card: CardInstance, player: Player) => {
     gameStore.addToGraveyard(card, player);
@@ -227,6 +239,31 @@ export function useGameActions() {
     const card = gameStore.removeFromGraveyard(cardId, player);
     broadcast('removeFromGraveyard', { cardId, player });
     return card;
+  }, [gameStore, broadcast]);
+
+  // Spell stack (casting zone)
+  const addToSpellStack = useCallback((card: CardInstance, player: Player) => {
+    gameStore.addToSpellStack(card, player);
+    broadcast('addToSpellStack', { card: serializeCard(card), player });
+    if (isMultiplayer) {
+      addLogEntry({
+        type: 'action',
+        player: localPlayer,
+        nickname,
+        message: `cast ${card.cardData.name}`,
+      });
+    }
+  }, [gameStore, broadcast, isMultiplayer, addLogEntry, localPlayer, nickname]);
+
+  const removeFromSpellStack = useCallback((cardId: string, player: Player) => {
+    const card = gameStore.removeFromSpellStack(cardId, player);
+    broadcast('removeFromSpellStack', { cardId, player });
+    return card;
+  }, [gameStore, broadcast]);
+
+  const clearSpellStack = useCallback((player: Player) => {
+    gameStore.clearSpellStack(player);
+    broadcast('clearSpellStack', { player });
   }, [gameStore, broadcast]);
 
   // Avatar placement
@@ -306,13 +343,18 @@ export function useGameActions() {
     drawCards,
     putCardOnTop,
     putCardOnBottom,
+    returnCardsToDeck,
     addToGraveyard,
     removeFromGraveyard,
+    addToSpellStack,
+    removeFromSpellStack,
+    clearSpellStack,
     placeAvatar,
     endTurn,
     importDeck,
 
-    // Non-broadcasted actions
+    // Non-broadcasted actions (deck search peek is local - opponent shouldn't see)
+    peekDeck: gameStore.peekDeck,
     selectCard,
     hoverCard,
     setHoveredDeck,

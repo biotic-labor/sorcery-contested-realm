@@ -159,6 +159,14 @@ class PeerService {
       this.events.onError?.(new Error(err.message || 'Connection error'));
     });
 
+    // Listen for ICE connection state changes to detect abrupt disconnects
+    // The 'close' event doesn't always fire when browser is closed abruptly
+    conn.on('iceStateChanged', (state: string) => {
+      if (state === 'disconnected' || state === 'failed' || state === 'closed') {
+        this.events.onDisconnected?.();
+      }
+    });
+
     this.events.onConnected?.();
   }
 

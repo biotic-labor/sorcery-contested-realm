@@ -15,17 +15,24 @@ fi
 
 echo "Uploading to R2 bucket: $BUCKET"
 
-# Upload card fronts (3074 files)
+# Upload card fronts (skip first 2373, already uploaded)
 echo ""
-echo "=== Uploading card fronts ==="
+echo "=== Uploading card fronts (skipping first 2373) ==="
 count=0
+skipped=0
+skip_count=2373
 total=$(ls ./public/assets/cards/*.png | wc -l)
+remaining=$((total - skip_count))
 for file in ./public/assets/cards/*.png; do
   if [ -f "$file" ]; then
+    skipped=$((skipped + 1))
+    if [ $skipped -le $skip_count ]; then
+      continue
+    fi
     filename=$(basename "$file")
     wrangler r2 object put "$BUCKET/card-fronts/$filename" --file "$file" --content-type "image/png" --remote
     count=$((count + 1))
-    echo -ne "\rUploaded $count / $total card fronts"
+    echo -ne "\rUploaded $count / $remaining card fronts"
   fi
 done
 echo ""

@@ -9,6 +9,7 @@ import { DeckZone } from '../DeckZone';
 import { DiscardPile } from '../DiscardPile';
 import { DeckImportButton } from '../DeckImport';
 import { GameLog } from '../GameLog';
+import { SpellStack } from '../SpellStack';
 import { Card } from '../Card';
 import { useGameStore } from '../../hooks/useGameState';
 import { useGameActions } from '../../hooks/useGameActions';
@@ -48,6 +49,9 @@ export function Game({ onLeave }: GameProps) {
     putCardOnTop,
     putCardOnBottom,
     addToGraveyard,
+    removeFromGraveyard,
+    addToSpellStack,
+    removeFromSpellStack,
     removeCardFromBoard,
     placeAvatar,
     moveAvatar,
@@ -61,6 +65,7 @@ export function Game({ onLeave }: GameProps) {
     disconnect,
     localPlayer,
     setOpponentDrag,
+    disconnectTime,
   } = useMultiplayerStore();
 
   const isMultiplayer = connectionStatus === 'connected';
@@ -139,14 +144,14 @@ export function Game({ onLeave }: GameProps) {
       // Clear any stale opponent drag ghost when we start dragging
       if (isMultiplayer) {
         setOpponentDrag(null);
-        // Only broadcast card data for cards from visible zones (board).
+        // Only broadcast card data for cards from visible zones (board, graveyard, spell-stack).
         // Cards from hand are hidden - don't leak what card is being played.
-        const isFromVisibleZone = source === 'board';
+        const isFromVisibleZone = source === 'board' || source === 'graveyard' || source === 'spell-stack';
         peerService.send({
           type: 'drag_start',
           cardId: card.id,
           cardData: isFromVisibleZone ? card.cardData : undefined,
-          from: sourcePosition || 'hand',
+          from: sourcePosition || source || 'hand',
         });
       }
     }
@@ -189,6 +194,7 @@ export function Game({ onLeave }: GameProps) {
     const sourcePosition = active.data.current?.sourcePosition as string | undefined;
     const activeIndex = active.data.current?.index as number | undefined;
     const activePlayer = active.data.current?.player as Player | undefined;
+    const sourcePlayer = active.data.current?.sourcePlayer as Player | undefined;
 
     if (!card) return;
 
@@ -204,10 +210,15 @@ export function Game({ onLeave }: GameProps) {
 
     const overId = over.id as string;
 
+    // Map UI player to data player (guest's "player" UI targets are stored in "opponent" data slot)
+    const mapUiPlayerToData = (uiPlayer: Player): Player => {
+      return isGuest ? (uiPlayer === 'player' ? 'opponent' : 'player') : uiPlayer;
+    };
+
     // Check if dropping on a deck (put card back)
     if (overId.startsWith('deck-')) {
       const parts = overId.split('-');
-      const deckPlayer = parts[1] as Player;
+      const deckPlayer = mapUiPlayerToData(parts[1] as Player);
       const deckType = parts[2] as DeckType;
 
       const isRightClick = event.activatorEvent instanceof PointerEvent && event.activatorEvent.button === 2;
@@ -227,13 +238,17 @@ export function Game({ onLeave }: GameProps) {
           const fromPosition = parsePositionKey(sourcePosition);
           removeCardFromBoard(card.id, fromPosition);
         }
+      } else if (source === 'graveyard' && sourcePlayer) {
+        removeFromGraveyard(card.id, sourcePlayer);
+      } else if (source === 'spell-stack' && sourcePlayer) {
+        removeFromSpellStack(card.id, sourcePlayer);
       }
       return;
     }
 
     // Check if dropping on a discard pile
     if (overId.startsWith('discard-')) {
-      const discardPlayer = overId.split('-')[1] as Player;
+      const discardPlayer = mapUiPlayerToData(overId.split('-')[1] as Player);
 
       addToGraveyard(card, discardPlayer);
 
@@ -246,13 +261,17 @@ export function Game({ onLeave }: GameProps) {
           const fromPosition = parsePositionKey(sourcePosition);
           removeCardFromBoard(card.id, fromPosition);
         }
+      } else if (source === 'graveyard' && sourcePlayer) {
+        removeFromGraveyard(card.id, sourcePlayer);
+      } else if (source === 'spell-stack' && sourcePlayer) {
+        removeFromSpellStack(card.id, sourcePlayer);
       }
       return;
     }
 
     // Check if dropping on a hand
     if (overId.startsWith('hand-')) {
-      const handPlayer = overId.split('-')[1] as Player;
+      const handPlayer = mapUiPlayerToData(overId.split('-')[1] as Player);
 
       addToHand(card, handPlayer);
 
@@ -263,6 +282,40 @@ export function Game({ onLeave }: GameProps) {
           const fromPosition = parsePositionKey(sourcePosition);
           removeCardFromBoard(card.id, fromPosition);
         }
+      } else if (source === 'graveyard' && sourcePlayer) {
+        removeFromGraveyard(card.id, sourcePlayer);
+      } else if (source === 'spell-stack' && sourcePlayer) {
+        removeFromSpellStack(card.id, sourcePlayer);
+      }
+      return;
+    }
+
+    // Check if dropping on a spell stack (casting zone)
+    if (overId.startsWith('spell-stack-')) {
+      const uiStackPlayer = overId.split('-')[2] as Player;
+
+      // Only allow dropping on your own spell stack
+      if (uiStackPlayer !== 'player') {
+        return;
+      }
+
+      const stackPlayer = mapUiPlayerToData(uiStackPlayer);
+
+      addToSpellStack(card, stackPlayer);
+
+      if (source === 'hand') {
+        removeFromHand(card.id, card.owner);
+      } else if (source === 'board' && sourcePosition) {
+        if (sourcePosition.startsWith('v-')) {
+          removeCardFromVertex(card.id, sourcePosition);
+        } else {
+          const fromPosition = parsePositionKey(sourcePosition);
+          removeCardFromBoard(card.id, fromPosition);
+        }
+      } else if (source === 'graveyard' && sourcePlayer) {
+        removeFromGraveyard(card.id, sourcePlayer);
+      } else if (source === 'spell-stack' && sourcePlayer) {
+        removeFromSpellStack(card.id, sourcePlayer);
       }
       return;
     }
@@ -287,6 +340,10 @@ export function Game({ onLeave }: GameProps) {
           const fromPosition = parsePositionKey(sourcePosition);
           removeCardFromBoard(card.id, fromPosition);
         }
+      } else if (source === 'graveyard' && sourcePlayer) {
+        removeFromGraveyard(card.id, sourcePlayer);
+      } else if (source === 'spell-stack' && sourcePlayer) {
+        removeFromSpellStack(card.id, sourcePlayer);
       }
       return;
     }
@@ -319,6 +376,20 @@ export function Game({ onLeave }: GameProps) {
         placeUnitOnSite(card, targetPosition);
       }
       removeFromHand(card.id, card.owner);
+    } else if (source === 'graveyard' && sourcePlayer) {
+      if (card.cardData.guardian.type === 'Site') {
+        placeCardOnSite(card, targetPosition);
+      } else {
+        placeUnitOnSite(card, targetPosition);
+      }
+      removeFromGraveyard(card.id, sourcePlayer);
+    } else if (source === 'spell-stack' && sourcePlayer) {
+      if (card.cardData.guardian.type === 'Site') {
+        placeCardOnSite(card, targetPosition);
+      } else {
+        placeUnitOnSite(card, targetPosition);
+      }
+      removeFromSpellStack(card.id, sourcePlayer);
     }
   };
 
@@ -332,6 +403,13 @@ export function Game({ onLeave }: GameProps) {
   return (
     <DndContext onDragStart={handleDragStart} onDragMove={handleDragMove} onDragEnd={handleDragEnd}>
       <div className="min-h-screen bg-gray-900 text-white flex flex-col">
+        {/* Disconnect notification banner - in document flow so it pushes content down */}
+        {connectionStatus === 'disconnected' && disconnectTime && (
+          <div className="bg-yellow-600 text-white py-2 px-4 text-center">
+            Opponent disconnected. Waiting for reconnection...
+          </div>
+        )}
+
         <header className="p-4 border-b border-gray-700 flex items-center justify-between">
           <div className="flex items-center gap-4">
             <button
@@ -398,8 +476,13 @@ export function Game({ onLeave }: GameProps) {
             <CardPreview card={hoveredCard} />
           </div>
 
-          {/* Player Stats Panel */}
-          <div className="absolute right-4 top-1/2 -translate-y-1/2 z-30">
+          {/* Right side: Spell Stacks and Player Stats */}
+          <div className="absolute right-4 top-1/2 -translate-y-1/2 z-30 flex items-center gap-4">
+            {/* Spell Stacks (casting zones) */}
+            <div className="flex flex-col gap-4">
+              <SpellStack player="opponent" />
+              <SpellStack player="player" />
+            </div>
             <PlayerStats />
           </div>
         </main>

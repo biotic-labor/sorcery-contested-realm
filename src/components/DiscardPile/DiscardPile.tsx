@@ -1,6 +1,7 @@
-import { useDroppable } from '@dnd-kit/core';
+import { useDroppable, useDraggable } from '@dnd-kit/core';
 import { Player, CardInstance, getCardImageUrl } from '../../types';
 import { useGameStore } from '../../hooks/useGameState';
+import { useMultiplayerStore } from '../../hooks/useMultiplayer';
 
 interface DiscardPileProps {
   player: Player;
@@ -9,21 +10,38 @@ interface DiscardPileProps {
 
 export function DiscardPile({ player, cards }: DiscardPileProps) {
   const { hoverCard } = useGameStore();
+  const { localPlayer, connectionStatus } = useMultiplayerStore();
+  const isMultiplayer = connectionStatus === 'connected';
+  const isGuest = isMultiplayer && localPlayer === 'opponent';
+
+  // Map UI player to data player for ownership check
+  const dataPlayer = isGuest
+    ? (player === 'player' ? 'opponent' : 'player')
+    : player;
+
   const dropId = `discard-${player}`;
 
-  const { isOver, setNodeRef } = useDroppable({
+  const { isOver, setNodeRef: setDropRef } = useDroppable({
     id: dropId,
   });
 
   const topCard = cards.length > 0 ? cards[cards.length - 1] : null;
+
+  // Only allow dragging own cards
+  const canDrag = topCard && topCard.owner === dataPlayer;
+
+  const { attributes, listeners, setNodeRef: setDragRef, isDragging } = useDraggable({
+    id: topCard ? `graveyard-${topCard.id}` : 'graveyard-empty',
+    data: { card: topCard, source: 'graveyard', sourcePlayer: dataPlayer },
+    disabled: !canDrag,
+  });
+
   const borderColor = isOver ? '#ef4444' : '#6b7280';
 
   return (
     <div
-      ref={setNodeRef}
+      ref={setDropRef}
       onContextMenu={(e) => e.preventDefault()}
-      onMouseEnter={() => topCard && hoverCard(topCard)}
-      onMouseLeave={() => hoverCard(null)}
       style={{
         width: '80px',
         height: '110px',
@@ -39,7 +57,19 @@ export function DiscardPile({ player, cards }: DiscardPileProps) {
       }}
     >
       {topCard ? (
-        <>
+        <div
+          ref={setDragRef}
+          {...(canDrag ? listeners : {})}
+          {...(canDrag ? attributes : {})}
+          onMouseEnter={() => hoverCard(topCard)}
+          onMouseLeave={() => hoverCard(null)}
+          style={{
+            width: '100%',
+            height: '100%',
+            cursor: canDrag ? 'grab' : 'default',
+            opacity: isDragging ? 0.5 : 1,
+          }}
+        >
           {/* Top card image */}
           <img
             src={getCardImageUrl(topCard.variant.slug)}
@@ -67,7 +97,7 @@ export function DiscardPile({ player, cards }: DiscardPileProps) {
           >
             {cards.length}
           </div>
-        </>
+        </div>
       ) : (
         <>
           {/* Empty state */}

@@ -8,6 +8,62 @@ import {
   Player,
   DeckType,
 } from '../types';
+import { SerializedGameState } from '../types/multiplayer';
+
+// localStorage key for persisting guest's private game state
+const GUEST_STATE_KEY = 'sorcery-guest-state';
+
+interface GuestPersistedState {
+  gameCode: string;
+  opponentHand: CardInstance[];
+  opponentSiteDeck: CardInstance[];
+  opponentSpellDeck: CardInstance[];
+  opponentGraveyard: CardInstance[];
+  timestamp: number;
+}
+
+// Save guest's private state to localStorage
+export function saveGuestState(gameCode: string, state: GameState): void {
+  const persisted: GuestPersistedState = {
+    gameCode,
+    opponentHand: state.opponentHand,
+    opponentSiteDeck: state.opponentSiteDeck,
+    opponentSpellDeck: state.opponentSpellDeck,
+    opponentGraveyard: state.opponentGraveyard,
+    timestamp: Date.now(),
+  };
+  try {
+    localStorage.setItem(GUEST_STATE_KEY, JSON.stringify(persisted));
+  } catch (e) {
+    console.warn('Failed to save guest state to localStorage:', e);
+  }
+}
+
+// Load guest's private state from localStorage (if matching game code)
+export function loadGuestState(gameCode: string): GuestPersistedState | null {
+  try {
+    const stored = localStorage.getItem(GUEST_STATE_KEY);
+    if (!stored) return null;
+    const persisted: GuestPersistedState = JSON.parse(stored);
+    // Only return if game code matches and not too old (1 hour)
+    if (persisted.gameCode === gameCode && Date.now() - persisted.timestamp < 3600000) {
+      return persisted;
+    }
+    return null;
+  } catch (e) {
+    console.warn('Failed to load guest state from localStorage:', e);
+    return null;
+  }
+}
+
+// Clear persisted guest state
+export function clearGuestState(): void {
+  try {
+    localStorage.removeItem(GUEST_STATE_KEY);
+  } catch (e) {
+    // Ignore
+  }
+}
 
 interface GameActions {
   // Card placement
@@ -56,9 +112,18 @@ interface GameActions {
   putCardOnTop: (card: CardInstance, player: Player, deckType: DeckType) => void;
   putCardOnBottom: (card: CardInstance, player: Player, deckType: DeckType) => void;
 
+  // Deck search
+  peekDeck: (player: Player, deckType: DeckType, count: number) => CardInstance[];
+  returnCardsToDeck: (cards: CardInstance[], player: Player, deckType: DeckType, position: 'top' | 'bottom') => void;
+
   // Graveyard
   addToGraveyard: (card: CardInstance, player: Player) => void;
   removeFromGraveyard: (cardId: string, player: Player) => CardInstance | null;
+
+  // Spell stack (casting zone)
+  addToSpellStack: (card: CardInstance, player: Player) => void;
+  removeFromSpellStack: (cardId: string, player: Player) => CardInstance | null;
+  clearSpellStack: (player: Player) => void;
 
   // Deck hover tracking
   setHoveredDeck: (deck: { player: Player; deckType: DeckType } | null) => void;
@@ -79,6 +144,9 @@ interface GameActions {
   clearDecks: (player: Player) => void;
   // Set decks directly (for multiplayer sync - no shuffle)
   setDecks: (player: Player, siteCards: CardInstance[], spellCards: CardInstance[]) => void;
+
+  // Apply full state (for reconnection sync)
+  applyFullState: (state: SerializedGameState) => void;
 }
 
 const initialState: GameState = {
@@ -93,6 +161,8 @@ const initialState: GameState = {
   opponentSpellDeck: [],
   playerGraveyard: [],
   opponentGraveyard: [],
+  playerSpellStack: [],
+  opponentSpellStack: [],
   playerLife: 20,
   opponentLife: 20,
   playerMana: 0,
@@ -494,6 +564,37 @@ export const useGameStore = create<GameState & GameActions>((set) => ({
     });
   },
 
+  peekDeck: (player, deckType, count) => {
+    const state = useGameStore.getState();
+    const deckKey = `${player}${deckType === 'site' ? 'Site' : 'Spell'}Deck` as keyof GameState;
+    const deck = state[deckKey] as CardInstance[];
+    const actualCount = count === -1 ? deck.length : Math.min(count, deck.length);
+    const peekedCards = deck.slice(0, actualCount);
+
+    // Remove peeked cards from deck
+    set(() => {
+      const currentDeck = [...(useGameStore.getState()[deckKey] as CardInstance[])];
+      return { [deckKey]: currentDeck.slice(actualCount) };
+    });
+
+    return peekedCards;
+  },
+
+  returnCardsToDeck: (cards, player, deckType, position) => {
+    set((state) => {
+      const deckKey = `${player}${deckType === 'site' ? 'Site' : 'Spell'}Deck` as keyof GameState;
+      const deck = [...(state[deckKey] as CardInstance[])];
+
+      if (position === 'top') {
+        // Cards array order: first card goes on top (will be drawn first)
+        return { [deckKey]: [...cards, ...deck] };
+      } else {
+        // Cards array order: first card goes to bottom first
+        return { [deckKey]: [...deck, ...cards] };
+      }
+    });
+  },
+
   addToGraveyard: (card, player) => {
     set((state) => ({
       playerGraveyard: player === 'player' ? [...state.playerGraveyard, card] : state.playerGraveyard,
@@ -514,6 +615,36 @@ export const useGameStore = create<GameState & GameActions>((set) => ({
         : { opponentGraveyard: graveyard };
     });
     return removedCard;
+  },
+
+  // Spell stack (casting zone)
+  addToSpellStack: (card, player) => {
+    set((state) => ({
+      playerSpellStack: player === 'player' ? [...state.playerSpellStack, card] : state.playerSpellStack,
+      opponentSpellStack: player === 'opponent' ? [...state.opponentSpellStack, card] : state.opponentSpellStack,
+    }));
+  },
+
+  removeFromSpellStack: (cardId, player) => {
+    let removedCard: CardInstance | null = null;
+    set((state) => {
+      const stack = player === 'player' ? [...state.playerSpellStack] : [...state.opponentSpellStack];
+      const index = stack.findIndex((c) => c.id === cardId);
+      if (index !== -1) {
+        [removedCard] = stack.splice(index, 1);
+      }
+      return player === 'player'
+        ? { playerSpellStack: stack }
+        : { opponentSpellStack: stack };
+    });
+    return removedCard;
+  },
+
+  clearSpellStack: (player) => {
+    set(() => ({
+      playerSpellStack: player === 'player' ? [] : useGameStore.getState().playerSpellStack,
+      opponentSpellStack: player === 'opponent' ? [] : useGameStore.getState().opponentSpellStack,
+    }));
   },
 
   setHoveredDeck: (deck) => set({ hoveredDeck: deck }),
@@ -621,5 +752,38 @@ export const useGameStore = create<GameState & GameActions>((set) => ({
         [spellDeckKey]: spellCards,
       } as Partial<GameState>;
     });
+  },
+
+  applyFullState: (syncedState) => {
+    set(() => ({
+      board: syncedState.board,
+      avatars: syncedState.avatars,
+      vertices: syncedState.vertices,
+      playerHand: syncedState.playerHand,
+      opponentHand: syncedState.opponentHand,
+      playerSiteDeck: syncedState.playerSiteDeck,
+      playerSpellDeck: syncedState.playerSpellDeck,
+      opponentSiteDeck: syncedState.opponentSiteDeck,
+      opponentSpellDeck: syncedState.opponentSpellDeck,
+      playerGraveyard: syncedState.playerGraveyard,
+      opponentGraveyard: syncedState.opponentGraveyard,
+      playerSpellStack: syncedState.playerSpellStack || [],
+      opponentSpellStack: syncedState.opponentSpellStack || [],
+      playerLife: syncedState.playerLife,
+      opponentLife: syncedState.opponentLife,
+      playerMana: syncedState.playerMana,
+      playerManaTotal: syncedState.playerManaTotal,
+      opponentMana: syncedState.opponentMana,
+      opponentManaTotal: syncedState.opponentManaTotal,
+      playerThresholds: syncedState.playerThresholds,
+      opponentThresholds: syncedState.opponentThresholds,
+      currentTurn: syncedState.currentTurn,
+      turnNumber: syncedState.turnNumber,
+      // Clear UI refs that may reference stale card instances
+      selectedCard: null,
+      hoveredCard: null,
+      hoveredDeck: null,
+      shufflingDeck: null,
+    }));
   },
 }));

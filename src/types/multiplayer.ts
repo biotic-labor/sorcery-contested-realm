@@ -31,6 +31,8 @@ export interface SerializedGameState {
   opponentSpellDeck: CardInstance[];
   playerGraveyard: CardInstance[];
   opponentGraveyard: CardInstance[];
+  playerSpellStack: CardInstance[];
+  opponentSpellStack: CardInstance[];
   playerLife: number;
   opponentLife: number;
   playerMana: number;
@@ -70,7 +72,10 @@ export type GameMessage =
   | { type: 'roll'; max: number; result: number; nickname: string; timestamp: number }
 
   // Deck import notification
-  | { type: 'deck_imported'; player: Player; deckType: DeckType; cardCount: number };
+  | { type: 'deck_imported'; player: Player; deckType: DeckType; cardCount: number }
+
+  // Deck search indicator
+  | { type: 'searching_deck'; player: Player; deckType: DeckType; searching: boolean; count?: number };
 
 // Game log entry
 export interface LogEntry {
@@ -102,6 +107,13 @@ export interface OpponentDragState {
   y: number;
 }
 
+// Opponent deck search state for visualization
+export interface OpponentSearchState {
+  player: Player;
+  deckType: DeckType;
+  count?: number;
+}
+
 // Multiplayer state
 export interface MultiplayerState {
   // Identity
@@ -125,6 +137,9 @@ export interface MultiplayerState {
 
   // Opponent drag visualization
   opponentDrag: OpponentDragState | null;
+
+  // Opponent deck search visualization
+  opponentSearching: OpponentSearchState | null;
 
   // In-game log and chat
   gameLog: LogEntry[];
