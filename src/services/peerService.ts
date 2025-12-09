@@ -63,7 +63,16 @@ class PeerService {
         });
 
         this.peer.on('connection', (conn) => {
-          this.setupConnection(conn);
+          // Wait for the DataConnection to be fully open before setting up
+          // The 'connection' event fires when a peer wants to connect,
+          // but the connection isn't ready for data until 'open' fires
+          if (conn.open) {
+            this.setupConnection(conn);
+          } else {
+            conn.on('open', () => {
+              this.setupConnection(conn);
+            });
+          }
         });
 
         this.peer.on('error', (err) => {
