@@ -356,6 +356,8 @@ export function Game({ onLeave }: GameProps) {
               <kbd className="px-2 py-1 bg-gray-700 rounded">E</kbd> tap/untap
               <span className="mx-2">|</span>
               <kbd className="px-2 py-1 bg-gray-700 rounded">U</kbd> under/over
+              <span className="mx-2">|</span>
+              <kbd className="px-2 py-1 bg-gray-700 rounded">R</kbd> shuffle
             </div>
           </div>
         </header>

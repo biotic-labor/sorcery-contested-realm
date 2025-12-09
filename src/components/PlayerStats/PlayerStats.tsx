@@ -211,19 +211,19 @@ function PlayerStatBlock({ player, label, life, mana, manaTotal, thresholds, dat
                 width: '16px',
                 height: '16px',
                 borderRadius: '50%',
-                backgroundColor: '#22c55e',
+                backgroundColor: '#a16207',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 fontSize: '10px',
                 fontWeight: 'bold',
-                color: '#166534',
+                color: '#fef3c7',
               }}
               title="Earth"
             >
               E
             </div>
-            <span style={{ fontSize: '12px', color: '#22c55e', fontWeight: 'bold' }}>{thresholds.earth}</span>
+            <span style={{ fontSize: '12px', color: '#a16207', fontWeight: 'bold' }}>{thresholds.earth}</span>
           </div>
         )}
         {thresholds.fire > 0 && (
