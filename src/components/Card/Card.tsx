@@ -10,6 +10,8 @@ interface CardProps {
   isHovered?: boolean;
   size?: 'xsmall' | 'small' | 'medium' | 'large';
   showAsHorizontal?: boolean;
+  onCounterIncrement?: () => void;
+  onCounterDecrement?: () => void;
 }
 
 const sizes = {
@@ -44,6 +46,8 @@ export function Card({
   isHovered = false,
   size = 'medium',
   showAsHorizontal = false,
+  onCounterIncrement,
+  onCounterDecrement,
 }: CardProps) {
   const [imageError, setImageError] = useState(false);
   const cardType = card.cardData.guardian.type;
@@ -125,6 +129,81 @@ export function Card({
       {isHovered && (
         <div className="absolute -bottom-8 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white text-xs px-2 py-1 rounded whitespace-nowrap z-20">
           {card.cardData.name}
+        </div>
+      )}
+
+      {/* Counter badge - centered, styled like mana/health controls */}
+      {card.counters !== undefined && card.counters > 0 && (
+        <div
+          className="absolute select-none"
+          style={{
+            top: '50%',
+            left: '50%',
+            transform: 'translate(-50%, -50%)',
+            minWidth: size === 'xsmall' ? '24px' : size === 'small' ? '28px' : '36px',
+            height: size === 'xsmall' ? '32px' : size === 'small' ? '40px' : '48px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            border: '1px solid #4b5563',
+            borderRadius: '4px',
+            backgroundColor: '#374151',
+            zIndex: 30,
+            boxShadow: '0 2px 8px rgba(0, 0, 0, 0.5)',
+          }}
+          onMouseDown={(e) => e.stopPropagation()}
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {(onCounterIncrement || onCounterDecrement) && (
+            <>
+              <div
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onCounterIncrement?.();
+                }}
+                onMouseDown={(e) => e.stopPropagation()}
+                onPointerDown={(e) => e.stopPropagation()}
+                style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  height: '50%',
+                  cursor: 'pointer',
+                  borderBottom: '1px solid #4b5563',
+                }}
+                className="hover:bg-white/10 active:bg-white/20"
+              />
+              <div
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onCounterDecrement?.();
+                }}
+                onMouseDown={(e) => e.stopPropagation()}
+                onPointerDown={(e) => e.stopPropagation()}
+                style={{
+                  position: 'absolute',
+                  bottom: 0,
+                  left: 0,
+                  right: 0,
+                  height: '50%',
+                  cursor: 'pointer',
+                }}
+                className="hover:bg-white/10 active:bg-white/20"
+              />
+            </>
+          )}
+          <span
+            style={{
+              fontSize: size === 'xsmall' ? '14px' : size === 'small' ? '18px' : '24px',
+              fontWeight: 'bold',
+              color: '#f87171',
+              pointerEvents: 'none',
+            }}
+          >
+            {card.counters}
+          </span>
         </div>
       )}
     </div>

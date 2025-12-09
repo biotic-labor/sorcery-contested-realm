@@ -75,7 +75,10 @@ export type GameMessage =
   | { type: 'deck_imported'; player: Player; deckType: DeckType; cardCount: number }
 
   // Deck search indicator
-  | { type: 'searching_deck'; player: Player; deckType: DeckType; searching: boolean; count?: number };
+  | { type: 'searching_deck'; player: Player; deckType: DeckType; searching: boolean; count?: number }
+
+  // Hand reveal
+  | { type: 'reveal_hand'; cards: CardInstance[]; nickname: string };
 
 // Game log entry
 export interface LogEntry {
@@ -114,6 +117,12 @@ export interface OpponentSearchState {
   count?: number;
 }
 
+// Revealed hand state for visualization
+export interface RevealedHandState {
+  cards: CardInstance[];
+  nickname: string;
+}
+
 // Multiplayer state
 export interface MultiplayerState {
   // Identity
@@ -140,6 +149,9 @@ export interface MultiplayerState {
 
   // Opponent deck search visualization
   opponentSearching: OpponentSearchState | null;
+
+  // Revealed hand from opponent
+  revealedHand: RevealedHandState | null;
 
   // In-game log and chat
   gameLog: LogEntry[];

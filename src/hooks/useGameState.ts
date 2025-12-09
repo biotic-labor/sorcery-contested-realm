@@ -79,6 +79,9 @@ interface GameActions {
   rotateCard: (cardId: string) => void;
   untapAllCards: (player: Player) => void;
 
+  // Card counters
+  adjustCardCounter: (cardId: string, amount: number) => void;
+
   // Card under/over toggle
   toggleCardUnder: (cardId: string) => void;
 
@@ -341,6 +344,55 @@ export const useGameStore = create<GameState & GameActions>((set) => ({
       for (const key of Object.keys(newVertices)) {
         newVertices[key] = newVertices[key].map((u) =>
           u.owner === player ? { ...u, rotation: 0 } : u
+        );
+      }
+
+      return { board: newBoard, avatars: newAvatars, vertices: newVertices };
+    });
+  },
+
+  adjustCardCounter: (cardId, amount) => {
+    set((state) => {
+      // Helper to update counter on a card
+      const updateCounter = (card: CardInstance): CardInstance => {
+        const newCount = (card.counters || 0) + amount;
+        // Remove counters property if 0 or less
+        if (newCount <= 0) {
+          const { counters: _, ...rest } = card;
+          return rest as CardInstance;
+        }
+        return { ...card, counters: newCount };
+      };
+
+      // Check board
+      const newBoard = state.board.map((row) =>
+        row.map((site) => ({
+          ...site,
+          siteCard: site.siteCard?.id === cardId
+            ? updateCounter(site.siteCard)
+            : site.siteCard,
+          units: site.units.map((u) =>
+            u.id === cardId ? updateCounter(u) : u
+          ),
+          underCards: site.underCards.map((u) =>
+            u.id === cardId ? updateCounter(u) : u
+          ),
+        }))
+      );
+
+      // Check avatars
+      const newAvatars = { ...state.avatars };
+      for (const key of Object.keys(newAvatars)) {
+        if (newAvatars[key].id === cardId) {
+          newAvatars[key] = updateCounter(newAvatars[key]);
+        }
+      }
+
+      // Check vertices
+      const newVertices = { ...state.vertices };
+      for (const key of Object.keys(newVertices)) {
+        newVertices[key] = newVertices[key].map((u) =>
+          u.id === cardId ? updateCounter(u) : u
         );
       }
 

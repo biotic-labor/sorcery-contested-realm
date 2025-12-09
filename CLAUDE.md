@@ -47,6 +47,18 @@ volumes:
 | `U` | Toggle card under/over site |
 | `1-9` | Draw N cards from hovered deck |
 
+## Card Counters
+
+Right-click any card on the board to access counter options:
+- **Add Counter** - Adds a counter to the card
+- **Remove Counter** - Removes a counter (only shown if card has counters)
+
+Once a card has counters, a red badge appears in the top-right corner showing the count. Click the badge to adjust:
+- Top half of badge: increment counter
+- Bottom half of badge: decrement counter
+
+Counter changes sync automatically in multiplayer.
+
 ## Architecture
 
 ### State Management

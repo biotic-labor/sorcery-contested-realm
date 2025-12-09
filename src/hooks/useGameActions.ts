@@ -98,6 +98,11 @@ export function useGameActions() {
     broadcast('toggleCardUnder', { cardId });
   }, [gameStore, broadcast]);
 
+  const adjustCardCounter = useCallback((cardId: string, amount: number) => {
+    gameStore.adjustCardCounter(cardId, amount);
+    broadcast('adjustCardCounter', { cardId, amount });
+  }, [gameStore, broadcast]);
+
   // Hand management
   const addToHand = useCallback((card: CardInstance, player: Player) => {
     gameStore.addToHand(card, player);
@@ -312,7 +317,15 @@ export function useGameActions() {
   const startTurn = useCallback((player: Player) => {
     gameStore.startTurn(player);
     broadcast('startTurn', { player });
-  }, [gameStore, broadcast]);
+    if (isMultiplayer) {
+      addLogEntry({
+        type: 'action',
+        player: localPlayer,
+        nickname,
+        message: 'started their turn',
+      });
+    }
+  }, [gameStore, broadcast, isMultiplayer, addLogEntry, localPlayer, nickname]);
 
   // Non-broadcasted actions (UI only, read from store directly)
   const selectCard = gameStore.selectCard;
@@ -331,6 +344,7 @@ export function useGameActions() {
     moveAvatar,
     rotateCard,
     toggleCardUnder,
+    adjustCardCounter,
     addToHand,
     removeFromHand,
     reorderHand,

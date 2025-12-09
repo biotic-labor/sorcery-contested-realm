@@ -13,6 +13,9 @@ interface BoardVertexProps {
   onVertexHover?: (vertexId: string | null) => void;
   selectedCardId?: string;
   hoveredCardId?: string;
+  onCardContextMenu?: (e: React.MouseEvent, card: CardInstance) => void;
+  onCounterIncrement?: (cardId: string) => void;
+  onCounterDecrement?: (cardId: string) => void;
 }
 
 export function BoardVertex({
@@ -24,6 +27,9 @@ export function BoardVertex({
   onVertexHover,
   selectedCardId,
   hoveredCardId,
+  onCardContextMenu,
+  onCounterIncrement,
+  onCounterDecrement,
 }: BoardVertexProps) {
   const id = vertexKey(row, col);
   const { isOver, setNodeRef } = useDroppable({ id });
@@ -76,6 +82,9 @@ export function BoardVertex({
             onClick={() => onCardClick?.(unit)}
             onHover={onCardHover}
             isOpponentCard={isOpponentCard(unit)}
+            onContextMenu={onCardContextMenu}
+            onCounterIncrement={onCounterIncrement ? () => onCounterIncrement(unit.id) : undefined}
+            onCounterDecrement={onCounterDecrement ? () => onCounterDecrement(unit.id) : undefined}
           />
         </div>
       ))}

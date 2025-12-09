@@ -12,6 +12,9 @@ interface DraggableBoardCardProps {
   isHovered?: boolean;
   showAsHorizontal?: boolean;
   isOpponentCard?: boolean; // Rotate 180deg if this card belongs to opponent
+  onContextMenu?: (e: React.MouseEvent, card: CardInstance) => void;
+  onCounterIncrement?: () => void;
+  onCounterDecrement?: () => void;
 }
 
 export function DraggableBoardCard({
@@ -23,6 +26,9 @@ export function DraggableBoardCard({
   isHovered,
   showAsHorizontal,
   isOpponentCard = false,
+  onContextMenu,
+  onCounterIncrement,
+  onCounterDecrement,
 }: DraggableBoardCardProps) {
   // Check actual ownership for drag permission (not visual rotation)
   const { localPlayer, connectionStatus } = useMultiplayerStore();
@@ -57,6 +63,12 @@ export function DraggableBoardCard({
         transition-transform duration-100
         ${isDragging ? 'opacity-50 cursor-grabbing' : 'cursor-grab'}
       `}
+      onContextMenu={(e) => {
+        if (onContextMenu) {
+          e.preventDefault();
+          onContextMenu(e, card);
+        }
+      }}
     >
       <Card
         card={card}
@@ -67,6 +79,8 @@ export function DraggableBoardCard({
         onClick={onClick}
         onMouseEnter={() => onHover?.(card)}
         onMouseLeave={() => onHover?.(null)}
+        onCounterIncrement={onCounterIncrement}
+        onCounterDecrement={onCounterDecrement}
       />
     </div>
   );

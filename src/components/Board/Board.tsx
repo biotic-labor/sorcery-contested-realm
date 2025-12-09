@@ -1,9 +1,11 @@
 import { useState, useCallback } from 'react';
 import { useGameStore } from '../../hooks/useGameState';
+import { useGameActions } from '../../hooks/useGameActions';
 import { useMultiplayerStore } from '../../hooks/useMultiplayer';
 import { positionKey, vertexKey, parseVertexKey, CardInstance, getPlaymatUrl } from '../../types';
 import { BoardSite } from './BoardSite';
 import { BoardVertex } from './BoardVertex';
+import { CardContextMenu } from './CardContextMenu';
 
 // Get the 4 site positions adjacent to a vertex
 function getAdjacentSites(vertexId: string): Set<string> {
@@ -16,8 +18,15 @@ function getAdjacentSites(vertexId: string): Set<string> {
   ]);
 }
 
+interface ContextMenuState {
+  x: number;
+  y: number;
+  card: CardInstance;
+}
+
 export function Board() {
   const [hoveredVertexId, setHoveredVertexId] = useState<string | null>(null);
+  const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
 
   const {
     board,
@@ -29,6 +38,7 @@ export function Board() {
     hoverCard,
   } = useGameStore();
 
+  const { adjustCardCounter } = useGameActions();
   const { localPlayer, connectionStatus } = useMultiplayerStore();
 
   // In multiplayer, player 2 (opponent perspective) sees the board rotated 180 degrees
@@ -45,6 +55,18 @@ export function Board() {
   const handleVertexHover = useCallback((vertexId: string | null) => {
     setHoveredVertexId(vertexId);
   }, []);
+
+  const handleCardContextMenu = useCallback((e: React.MouseEvent, card: CardInstance) => {
+    setContextMenu({ x: e.clientX, y: e.clientY, card });
+  }, []);
+
+  const handleCounterIncrement = useCallback((cardId: string) => {
+    adjustCardCounter(cardId, 1);
+  }, [adjustCardCounter]);
+
+  const handleCounterDecrement = useCallback((cardId: string) => {
+    adjustCardCounter(cardId, -1);
+  }, [adjustCardCounter]);
 
   // Calculate which sites should be highlighted due to vertex hover
   const highlightedSites = hoveredVertexId ? getAdjacentSites(hoveredVertexId) : new Set<string>();
@@ -106,6 +128,9 @@ export function Board() {
                   avatarZoneOwner={avatarZoneOwner}
                   isHighlightedByVertex={highlightedSites.has(siteKey)}
                   labelCounterRotate={isRotated}
+                  onCardContextMenu={handleCardContextMenu}
+                  onCounterIncrement={handleCounterIncrement}
+                  onCounterDecrement={handleCounterDecrement}
                 />
               );
             })
@@ -149,6 +174,9 @@ export function Board() {
                   onVertexHover={handleVertexHover}
                   selectedCardId={selectedCard?.id}
                   hoveredCardId={hoveredCard?.id}
+                  onCardContextMenu={handleCardContextMenu}
+                  onCounterIncrement={handleCounterIncrement}
+                  onCounterDecrement={handleCounterDecrement}
                 />
               </div>
             );
@@ -159,6 +187,18 @@ export function Board() {
       <div className="text-sm text-gray-400 mt-2">
         {bottomLabel}
       </div>
+
+      {/* Card context menu */}
+      {contextMenu && (
+        <CardContextMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          hasCounter={(contextMenu.card.counters ?? 0) > 0}
+          onAddCounter={() => handleCounterIncrement(contextMenu.card.id)}
+          onRemoveCounter={() => handleCounterDecrement(contextMenu.card.id)}
+          onClose={() => setContextMenu(null)}
+        />
+      )}
     </div>
   );
 }

@@ -1,7 +1,9 @@
+import { useState, useRef, useEffect } from 'react';
 import { useDroppable } from '@dnd-kit/core';
 import { SortableContext, horizontalListSortingStrategy } from '@dnd-kit/sortable';
 import { useGameStore } from '../../hooks/useGameState';
 import { useMultiplayerStore } from '../../hooks/useMultiplayer';
+import { peerService } from '../../services/peerService';
 import { CardInstance, Player } from '../../types';
 import { SortableCard } from './SortableCard';
 import { CardBack } from '../Card';
@@ -11,8 +13,15 @@ interface HandProps {
   size?: 'xsmall' | 'small' | 'medium';
 }
 
+interface ContextMenuState {
+  x: number;
+  y: number;
+}
+
 export function Hand({ player, size = 'medium' }: HandProps) {
   const { setNodeRef, isOver } = useDroppable({ id: `hand-${player}` });
+  const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
 
   const {
     playerHand,
@@ -23,9 +32,24 @@ export function Hand({ player, size = 'medium' }: HandProps) {
     hoverCard,
   } = useGameStore();
 
-  const { localPlayer, connectionStatus, gameCode } = useMultiplayerStore();
+  const { localPlayer, connectionStatus, gameCode, nickname } = useMultiplayerStore();
   // Use gameCode to check if we're in a multiplayer game (persists through disconnects)
   const isMultiplayer = connectionStatus === 'connected' || (connectionStatus === 'disconnected' && !!gameCode);
+  const isConnected = connectionStatus === 'connected';
+
+  // Close context menu on click outside
+  useEffect(() => {
+    if (!contextMenu) return;
+
+    const handleClickOutside = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setContextMenu(null);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [contextMenu]);
 
   // Perspective mapping - guest sees swapped data sources
   // Game state uses "player" for host's data, "opponent" for guest's data
@@ -45,6 +69,24 @@ export function Hand({ player, size = 'medium' }: HandProps) {
 
   const handleCardClick = (card: CardInstance) => {
     selectCard(selectedCard?.id === card.id ? null : card);
+  };
+
+  const handleContextMenu = (e: React.MouseEvent) => {
+    // Only show context menu for local player's hand in multiplayer
+    if (!isLocalPlayersHand || !isConnected) return;
+
+    e.preventDefault();
+    setContextMenu({ x: e.clientX, y: e.clientY });
+  };
+
+  const handleRevealHand = () => {
+    setContextMenu(null);
+    // Send the actual hand cards to opponent
+    peerService.send({
+      type: 'reveal_hand',
+      cards: hand,
+      nickname: nickname,
+    });
   };
 
   const minHeight = size === 'xsmall' ? 'min-h-[100px]' : size === 'small' ? 'min-h-[120px]' : 'min-h-[180px]';
@@ -70,45 +112,64 @@ export function Hand({ player, size = 'medium' }: HandProps) {
   }
 
   return (
-    <div
-      ref={setNodeRef}
-      className={`
-        ${padding} rounded-lg border
-        ${isOver ? 'bg-blue-900 border-blue-400' : `${isPlayerHand ? 'bg-gray-800' : 'bg-gray-700'} border-gray-600`}
-        transition-colors duration-200
-      `}
-    >
-      <div className="text-sm text-gray-400 mb-2">
-        {isLocalPlayersHand ? 'Your Hand' : "Opponent's Hand"} ({hand.length} cards)
-      </div>
-
-      {showAsCardBacks ? (
-        // Show card backs for opponent in multiplayer (site vs spell backs)
-        <div className={`flex ${gap} overflow-x-auto pb-2`}>
-          {hand.map((card) => (
-            <CardBack key={card.id} size={size} deckType={card.sourceDeck} />
-          ))}
+    <>
+      <div
+        ref={setNodeRef}
+        onContextMenu={handleContextMenu}
+        className={`
+          ${padding} rounded-lg border
+          ${isOver ? 'bg-blue-900 border-blue-400' : `${isPlayerHand ? 'bg-gray-800' : 'bg-gray-700'} border-gray-600`}
+          transition-colors duration-200
+        `}
+      >
+        <div className="text-sm text-gray-400 mb-2">
+          {isLocalPlayersHand ? 'Your Hand' : "Opponent's Hand"} ({hand.length} cards)
         </div>
-      ) : (
-        // Show actual cards for local player
-        <SortableContext items={hand.map(c => c.id)} strategy={horizontalListSortingStrategy}>
+
+        {showAsCardBacks ? (
+          // Show card backs for opponent in multiplayer (site vs spell backs)
           <div className={`flex ${gap} overflow-x-auto pb-2`}>
-            {hand.map((card, index) => (
-              <SortableCard
-                key={card.id}
-                card={card}
-                index={index}
-                player={player}
-                size={size}
-                isSelected={selectedCard?.id === card.id}
-                isHovered={hoveredCard?.id === card.id}
-                onClick={() => handleCardClick(card)}
-                onHover={hoverCard}
-              />
+            {hand.map((card) => (
+              <CardBack key={card.id} size={size} deckType={card.sourceDeck} />
             ))}
           </div>
-        </SortableContext>
+        ) : (
+          // Show actual cards for local player
+          <SortableContext items={hand.map(c => c.id)} strategy={horizontalListSortingStrategy}>
+            <div className={`flex ${gap} overflow-x-auto pb-2`}>
+              {hand.map((card, index) => (
+                <SortableCard
+                  key={card.id}
+                  card={card}
+                  index={index}
+                  player={player}
+                  size={size}
+                  isSelected={selectedCard?.id === card.id}
+                  isHovered={hoveredCard?.id === card.id}
+                  onClick={() => handleCardClick(card)}
+                  onHover={hoverCard}
+                />
+              ))}
+            </div>
+          </SortableContext>
+        )}
+      </div>
+
+      {/* Context menu for reveal hand */}
+      {contextMenu && (
+        <div
+          ref={menuRef}
+          className="fixed bg-gray-800 border border-gray-600 rounded shadow-lg py-1 z-50"
+          style={{ left: contextMenu.x, top: contextMenu.y }}
+        >
+          <button
+            onClick={handleRevealHand}
+            className="w-full px-4 py-2 text-left text-white hover:bg-gray-700"
+          >
+            Reveal Hand to Opponent
+          </button>
+        </div>
       )}
-    </div>
+    </>
   );
 }

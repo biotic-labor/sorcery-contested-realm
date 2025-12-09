@@ -46,6 +46,9 @@ interface MultiplayerActions {
   setOpponentSearching: (search: OpponentSearchState | null) => void;
   sendSearchingDeck: (deckType: 'site' | 'spell', searching: boolean, count?: number) => void;
 
+  // Revealed hand
+  clearRevealedHand: () => void;
+
   // State sync
   sendFullSync: () => void;
   broadcastAction: (actionName: string, payload: Record<string, unknown>) => void;
@@ -240,6 +243,10 @@ function applyRemoteAction(
     }
     case 'toggleCardUnder': {
       gameStore.toggleCardUnder(payload.cardId as string);
+      break;
+    }
+    case 'adjustCardCounter': {
+      gameStore.adjustCardCounter(payload.cardId as string, payload.amount as number);
       break;
     }
     case 'addToHand': {
@@ -455,6 +462,12 @@ function applyRemoteAction(
       // DO NOT swap - data should go in same slot on both clients
       const player = payload.player as Player;
       gameStore.startTurn(player);
+      addLogEntry({
+        type: 'action',
+        player: opponentPlayer,
+        nickname: opponentNickname,
+        message: 'started their turn',
+      });
       break;
     }
     default:
@@ -479,6 +492,7 @@ export const useMultiplayerStore = create<MultiplayerState & MultiplayerActions>
       pendingAcks: new Set<number>(),
       opponentDrag: null,
       opponentSearching: null,
+      revealedHand: null,
       gameLog: [],
       savedGames: [],
       disconnectTime: null,
@@ -754,6 +768,10 @@ export const useMultiplayerStore = create<MultiplayerState & MultiplayerActions>
           count,
         };
         peerService.send(message);
+      },
+
+      clearRevealedHand: () => {
+        set({ revealedHand: null });
       },
 
       sendFullSync: () => {
@@ -1053,6 +1071,21 @@ export const useMultiplayerStore = create<MultiplayerState & MultiplayerActions>
             } else {
               set({ opponentSearching: null });
             }
+            break;
+
+          case 'reveal_hand':
+            set({
+              revealedHand: {
+                cards: message.cards,
+                nickname: message.nickname,
+              },
+            });
+            state.addLogEntry({
+              type: 'action',
+              player: state.localPlayer === 'player' ? 'opponent' : 'player',
+              nickname: message.nickname,
+              message: 'revealed their hand',
+            });
             break;
         }
       },

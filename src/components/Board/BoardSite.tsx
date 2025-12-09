@@ -16,6 +16,9 @@ interface BoardSiteProps {
   avatarZoneOwner?: 'player' | 'opponent';
   isHighlightedByVertex?: boolean;
   labelCounterRotate?: boolean; // Counter-rotate grid label when board is rotated for player 2
+  onCardContextMenu?: (e: React.MouseEvent, card: CardInstance) => void;
+  onCounterIncrement?: (cardId: string) => void;
+  onCounterDecrement?: (cardId: string) => void;
 }
 
 export function BoardSite({
@@ -31,6 +34,9 @@ export function BoardSite({
   avatarZoneOwner,
   isHighlightedByVertex = false,
   labelCounterRotate = false,
+  onCardContextMenu,
+  onCounterIncrement,
+  onCounterDecrement,
 }: BoardSiteProps) {
   const id = positionKey(row, col);
   const { isOver, setNodeRef } = useDroppable({ id });
@@ -111,6 +117,9 @@ export function BoardSite({
             onClick={() => onCardClick?.(site.siteCard!)}
             onHover={onCardHover}
             isOpponentCard={isOpponentCard(site.siteCard)}
+            onContextMenu={onCardContextMenu}
+            onCounterIncrement={onCounterIncrement ? () => onCounterIncrement(site.siteCard!.id) : undefined}
+            onCounterDecrement={onCounterDecrement ? () => onCounterDecrement(site.siteCard!.id) : undefined}
           />
         </div>
       )}
@@ -148,6 +157,9 @@ export function BoardSite({
                   onClick={() => onCardClick?.(unit)}
                   onHover={onCardHover}
                   isOpponentCard={isOpponentCard(unit)}
+                  onContextMenu={onCardContextMenu}
+                  onCounterIncrement={onCounterIncrement ? () => onCounterIncrement(unit.id) : undefined}
+                  onCounterDecrement={onCounterDecrement ? () => onCounterDecrement(unit.id) : undefined}
                 />
               </div>
             );
@@ -168,6 +180,9 @@ export function BoardSite({
               onClick={() => onCardClick?.(avatar)}
               onHover={onCardHover}
               isOpponentCard={isOpponentCard(avatar)}
+              onContextMenu={onCardContextMenu}
+              onCounterIncrement={onCounterIncrement ? () => onCounterIncrement(avatar.id) : undefined}
+              onCounterDecrement={onCounterDecrement ? () => onCounterDecrement(avatar.id) : undefined}
             />
           </div>
         </div>
@@ -207,6 +222,9 @@ export function BoardSite({
                   onClick={() => onCardClick?.(card)}
                   onHover={onCardHover}
                   isOpponentCard={isOpponentCard(card)}
+                  onContextMenu={onCardContextMenu}
+                  onCounterIncrement={onCounterIncrement ? () => onCounterIncrement(card.id) : undefined}
+                  onCounterDecrement={onCounterDecrement ? () => onCounterDecrement(card.id) : undefined}
                 />
               </div>
             );

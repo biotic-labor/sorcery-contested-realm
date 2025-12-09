@@ -11,6 +11,7 @@ import { DeckImportButton } from '../DeckImport';
 import { GameLog } from '../GameLog';
 import { SpellStack } from '../SpellStack';
 import { Card } from '../Card';
+import { RevealHandModal } from '../RevealHand';
 import { useGameStore } from '../../hooks/useGameState';
 import { useGameActions } from '../../hooks/useGameActions';
 import { useHotkeys } from '../../hooks/useHotkeys';
@@ -66,6 +67,8 @@ export function Game({ onLeave }: GameProps) {
     localPlayer,
     setOpponentDrag,
     disconnectTime,
+    revealedHand,
+    clearRevealedHand,
   } = useMultiplayerStore();
 
   const isMultiplayer = connectionStatus === 'connected';
@@ -497,6 +500,14 @@ export function Game({ onLeave }: GameProps) {
           <Card card={activeCard} size="medium" />
         )}
       </DragOverlay>
+
+      {/* Revealed hand modal - shown when opponent reveals their hand */}
+      <RevealHandModal
+        isOpen={revealedHand !== null}
+        cards={revealedHand?.cards ?? []}
+        nickname={revealedHand?.nickname ?? ''}
+        onClose={clearRevealedHand}
+      />
     </DndContext>
   );
 }

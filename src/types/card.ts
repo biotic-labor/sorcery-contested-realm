@@ -53,6 +53,7 @@ export interface CardInstance {
   rotation: number; // 0 or 90 degrees
   owner: 'player' | 'opponent';
   sourceDeck?: 'site' | 'spell'; // Which deck the card was drawn from (for hidden card backs)
+  counters?: number; // Counter tokens on this card
 }
 
 // CDN base URL for all card assets

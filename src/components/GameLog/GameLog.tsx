@@ -1,12 +1,72 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { useMultiplayerStore } from '../../hooks/useMultiplayer';
 import { LogEntry } from '../../types/multiplayer';
+
+const STORAGE_KEY = 'gameLogPrefs';
+const DEFAULT_WIDTH = 320;
+const DEFAULT_HEIGHT = 384;
+const MIN_WIDTH = 250;
+const MIN_HEIGHT = 200;
+const MAX_WIDTH = 600;
+const MAX_HEIGHT = 600;
+
+interface Position {
+  x: number;
+  y: number;
+}
+
+interface Size {
+  width: number;
+  height: number;
+}
+
+interface StoredPrefs {
+  position: Position;
+  size: Size;
+}
+
+function loadPrefs(): StoredPrefs | null {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored) {
+      return JSON.parse(stored);
+    }
+  } catch {
+    // Ignore parse errors
+  }
+  return null;
+}
+
+function savePrefs(prefs: StoredPrefs): void {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(prefs));
+  } catch {
+    // Ignore storage errors
+  }
+}
 
 export function GameLog() {
   const [isOpen, setIsOpen] = useState(false);
   const [inputValue, setInputValue] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  // Position and size state
+  const [position, setPosition] = useState<Position>(() => {
+    const prefs = loadPrefs();
+    return prefs?.position ?? { x: window.innerWidth - DEFAULT_WIDTH - 16, y: window.innerHeight - DEFAULT_HEIGHT - 80 };
+  });
+  const [size, setSize] = useState<Size>(() => {
+    const prefs = loadPrefs();
+    return prefs?.size ?? { width: DEFAULT_WIDTH, height: DEFAULT_HEIGHT };
+  });
+
+  // Drag state
+  const [isDragging, setIsDragging] = useState(false);
+  const [isResizing, setIsResizing] = useState<string | null>(null);
+  const dragStart = useRef<{ x: number; y: number; posX: number; posY: number }>({ x: 0, y: 0, posX: 0, posY: 0 });
+  const resizeStart = useRef<{ x: number; y: number; width: number; height: number; posX: number; posY: number }>({ x: 0, y: 0, width: 0, height: 0, posX: 0, posY: 0 });
 
   const {
     gameLog,
@@ -30,6 +90,117 @@ export function GameLog() {
       inputRef.current.focus();
     }
   }, [isOpen]);
+
+  // Save preferences when position or size changes
+  useEffect(() => {
+    if (isOpen) {
+      savePrefs({ position, size });
+    }
+  }, [position, size, isOpen]);
+
+  // Clamp position to keep panel visible
+  const clampPosition = useCallback((pos: Position, panelSize: Size): Position => {
+    const maxX = window.innerWidth - panelSize.width;
+    const maxY = window.innerHeight - panelSize.height;
+    return {
+      x: Math.max(0, Math.min(pos.x, maxX)),
+      y: Math.max(0, Math.min(pos.y, maxY)),
+    };
+  }, []);
+
+  // Handle drag start on header
+  const handleDragStart = useCallback((e: React.MouseEvent) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    setIsDragging(true);
+    dragStart.current = {
+      x: e.clientX,
+      y: e.clientY,
+      posX: position.x,
+      posY: position.y,
+    };
+  }, [position]);
+
+  // Handle resize start
+  const handleResizeStart = useCallback((e: React.MouseEvent, direction: string) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+    setIsResizing(direction);
+    resizeStart.current = {
+      x: e.clientX,
+      y: e.clientY,
+      width: size.width,
+      height: size.height,
+      posX: position.x,
+      posY: position.y,
+    };
+  }, [size, position]);
+
+  // Global mouse move and up handlers
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (isDragging) {
+        const dx = e.clientX - dragStart.current.x;
+        const dy = e.clientY - dragStart.current.y;
+        const newPos = {
+          x: dragStart.current.posX + dx,
+          y: dragStart.current.posY + dy,
+        };
+        setPosition(clampPosition(newPos, size));
+      } else if (isResizing) {
+        const dx = e.clientX - resizeStart.current.x;
+        const dy = e.clientY - resizeStart.current.y;
+        let newWidth = resizeStart.current.width;
+        let newHeight = resizeStart.current.height;
+        let newPosX = resizeStart.current.posX;
+        let newPosY = resizeStart.current.posY;
+
+        if (isResizing.includes('e')) {
+          newWidth = Math.max(MIN_WIDTH, Math.min(MAX_WIDTH, resizeStart.current.width + dx));
+        }
+        if (isResizing.includes('w')) {
+          const widthChange = Math.max(MIN_WIDTH, Math.min(MAX_WIDTH, resizeStart.current.width - dx)) - resizeStart.current.width;
+          newWidth = resizeStart.current.width + widthChange;
+          newPosX = resizeStart.current.posX - widthChange;
+        }
+        if (isResizing.includes('s')) {
+          newHeight = Math.max(MIN_HEIGHT, Math.min(MAX_HEIGHT, resizeStart.current.height + dy));
+        }
+        if (isResizing.includes('n')) {
+          const heightChange = Math.max(MIN_HEIGHT, Math.min(MAX_HEIGHT, resizeStart.current.height - dy)) - resizeStart.current.height;
+          newHeight = resizeStart.current.height + heightChange;
+          newPosY = resizeStart.current.posY - heightChange;
+        }
+
+        setSize({ width: newWidth, height: newHeight });
+        setPosition(clampPosition({ x: newPosX, y: newPosY }, { width: newWidth, height: newHeight }));
+      }
+    };
+
+    const handleMouseUp = () => {
+      setIsDragging(false);
+      setIsResizing(null);
+    };
+
+    if (isDragging || isResizing) {
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+      return () => {
+        document.removeEventListener('mousemove', handleMouseMove);
+        document.removeEventListener('mouseup', handleMouseUp);
+      };
+    }
+  }, [isDragging, isResizing, size, clampPosition]);
+
+  // Handle window resize to keep panel in bounds
+  useEffect(() => {
+    const handleWindowResize = () => {
+      setPosition(prev => clampPosition(prev, size));
+    };
+    window.addEventListener('resize', handleWindowResize);
+    return () => window.removeEventListener('resize', handleWindowResize);
+  }, [size, clampPosition]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -129,28 +300,91 @@ export function GameLog() {
 
       {/* Log Panel */}
       <div
+        ref={panelRef}
+        style={{
+          left: position.x,
+          top: position.y,
+          width: size.width,
+          height: size.height,
+        }}
         className={`
-          fixed bottom-20 right-4 z-40
-          w-80 max-h-96
+          fixed z-40
           bg-gray-800 border border-gray-700 rounded-lg shadow-xl
           flex flex-col
-          transition-all duration-200 origin-bottom-right
-          ${isOpen ? 'scale-100 opacity-100' : 'scale-95 opacity-0 pointer-events-none'}
+          ${isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}
+          ${isDragging || isResizing ? '' : 'transition-opacity duration-200'}
         `}
       >
-        {/* Header */}
-        <div className="px-3 py-2 border-b border-gray-700 flex items-center justify-between">
+        {/* Resize handles */}
+        {isOpen && (
+          <>
+            {/* Edge handles */}
+            <div
+              className="absolute top-0 left-2 right-2 h-1 cursor-n-resize hover:bg-blue-500/30"
+              onMouseDown={(e) => handleResizeStart(e, 'n')}
+            />
+            <div
+              className="absolute bottom-0 left-2 right-2 h-1 cursor-s-resize hover:bg-blue-500/30"
+              onMouseDown={(e) => handleResizeStart(e, 's')}
+            />
+            <div
+              className="absolute left-0 top-2 bottom-2 w-1 cursor-w-resize hover:bg-blue-500/30"
+              onMouseDown={(e) => handleResizeStart(e, 'w')}
+            />
+            <div
+              className="absolute right-0 top-2 bottom-2 w-1 cursor-e-resize hover:bg-blue-500/30"
+              onMouseDown={(e) => handleResizeStart(e, 'e')}
+            />
+            {/* Corner handles */}
+            <div
+              className="absolute top-0 left-0 w-3 h-3 cursor-nw-resize hover:bg-blue-500/30"
+              onMouseDown={(e) => handleResizeStart(e, 'nw')}
+            />
+            <div
+              className="absolute top-0 right-0 w-3 h-3 cursor-ne-resize hover:bg-blue-500/30"
+              onMouseDown={(e) => handleResizeStart(e, 'ne')}
+            />
+            <div
+              className="absolute bottom-0 left-0 w-3 h-3 cursor-sw-resize hover:bg-blue-500/30"
+              onMouseDown={(e) => handleResizeStart(e, 'sw')}
+            />
+            <div
+              className="absolute bottom-0 right-0 w-3 h-3 cursor-se-resize hover:bg-blue-500/30"
+              onMouseDown={(e) => handleResizeStart(e, 'se')}
+            />
+          </>
+        )}
+
+        {/* Header - draggable */}
+        <div
+          className={`px-3 py-2 border-b border-gray-700 flex items-center justify-between select-none ${isDragging ? 'cursor-grabbing' : 'cursor-grab'}`}
+          onMouseDown={handleDragStart}
+        >
           <h3 className="text-sm font-medium text-white">Game Log</h3>
-          {isMultiplayer && (
-            <span className="text-xs text-green-400 flex items-center gap-1">
-              <span className="w-2 h-2 bg-green-400 rounded-full" />
-              Connected
-            </span>
-          )}
+          <div className="flex items-center gap-2">
+            {isMultiplayer && (
+              <span className="text-xs text-green-400 flex items-center gap-1">
+                <span className="w-2 h-2 bg-green-400 rounded-full" />
+                Connected
+              </span>
+            )}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsOpen(false);
+              }}
+              className="text-gray-400 hover:text-white transition-colors"
+              title="Close"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
         </div>
 
         {/* Messages */}
-        <div className="flex-1 overflow-y-auto p-3 space-y-1 min-h-[200px] max-h-[300px]">
+        <div className="flex-1 overflow-y-auto p-3 space-y-1">
           {gameLog.length === 0 ? (
             <p className="text-gray-500 text-sm text-center py-4">
               No activity yet
@@ -162,7 +396,7 @@ export function GameLog() {
                   {formatTime(entry.timestamp)}
                 </span>
                 {entry.type === 'roll' && (
-                  <span className="mr-1">🎲</span>
+                  <span className="mr-1">dice:</span>
                 )}
                 {formatEntry(entry)}
               </div>
