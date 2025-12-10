@@ -292,15 +292,6 @@ export function Dashboard({ onGameStart }: DashboardProps) {
                     </div>
                   </div>
 
-                  {/* Local Play option */}
-                  <div className="text-center">
-                    <button
-                      onClick={onGameStart}
-                      className="text-gray-400 hover:text-white text-sm transition-colors underline"
-                    >
-                      Play locally (hot-seat)
-                    </button>
-                  </div>
                 </>
               )}
             </div>
