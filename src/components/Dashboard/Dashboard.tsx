@@ -20,14 +20,11 @@ export function Dashboard({ onGameStart }: DashboardProps) {
     cancelPublicGame,
     joinGame,
     disconnect,
-    savedGames,
-    deleteSavedGame,
   } = useMultiplayerStore();
 
   const [isEditing, setIsEditing] = useState(false);
   const [editedNickname, setEditedNickname] = useState(nickname);
   const [joinCode, setJoinCode] = useState('');
-  const [activeTab, setActiveTab] = useState<'play' | 'saved'>('play');
 
   const handleNicknameSave = () => {
     if (editedNickname.trim()) {
@@ -157,32 +154,7 @@ export function Dashboard({ onGameStart }: DashboardProps) {
             )}
           </div>
 
-          {/* Tabs */}
-          <div className="flex border-b border-gray-700">
-            <button
-              onClick={() => setActiveTab('play')}
-              className={`px-4 py-2 font-medium transition-colors ${
-                activeTab === 'play'
-                  ? 'text-white border-b-2 border-blue-500'
-                  : 'text-gray-400 hover:text-white'
-              }`}
-            >
-              Play
-            </button>
-            <button
-              onClick={() => setActiveTab('saved')}
-              className={`px-4 py-2 font-medium transition-colors ${
-                activeTab === 'saved'
-                  ? 'text-white border-b-2 border-blue-500'
-                  : 'text-gray-400 hover:text-white'
-              }`}
-            >
-              Saved Games ({savedGames.length})
-            </button>
-          </div>
-
-          {activeTab === 'play' && (
-            <div className="space-y-4">
+          <div className="space-y-4">
               {/* Waiting state - Private game */}
               {connectionStatus === 'waiting' && gameCode && !isPublicGame && (
                 <div className="bg-gray-800 rounded-lg p-6 border border-gray-700 text-center">
@@ -294,40 +266,7 @@ export function Dashboard({ onGameStart }: DashboardProps) {
 
                 </>
               )}
-            </div>
-          )}
-
-          {activeTab === 'saved' && (
-            <div className="space-y-3">
-              {savedGames.length === 0 ? (
-                <div className="bg-gray-800 rounded-lg p-6 border border-gray-700 text-center">
-                  <p className="text-gray-400">No saved games</p>
-                </div>
-              ) : (
-                savedGames.map((game) => (
-                  <div
-                    key={game.id}
-                    className="bg-gray-800 rounded-lg p-4 border border-gray-700 flex items-center justify-between"
-                  >
-                    <div>
-                      <p className="font-medium">vs {game.opponentNickname}</p>
-                      <p className="text-sm text-gray-400">
-                        {new Date(game.lastActivity).toLocaleDateString()}
-                      </p>
-                    </div>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => deleteSavedGame(game.id)}
-                        className="px-3 py-1 bg-red-600/30 hover:bg-red-600/50 text-red-400 rounded transition-colors text-sm"
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          )}
+          </div>
         </div>
       </main>
 
