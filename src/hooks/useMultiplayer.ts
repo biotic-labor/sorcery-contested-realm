@@ -27,6 +27,8 @@ interface MultiplayerActions {
 
   // Connection
   createGame: () => Promise<string>;
+  createPublicGame: () => Promise<string>;
+  cancelPublicGame: () => Promise<void>;
   joinGame: (code: string) => Promise<void>;
   disconnect: () => void;
 
@@ -492,6 +494,7 @@ export const useMultiplayerStore = create<MultiplayerState & MultiplayerActions>
       connectionStatus: 'disconnected',
       connectionError: null,
       isHost: false,
+      isPublicGame: false,
       gameCode: null,
       localPlayer: 'player',
       lastSequence: 0,
@@ -588,6 +591,15 @@ export const useMultiplayerStore = create<MultiplayerState & MultiplayerActions>
           const code = await peerService.createGame();
           set({ gameCode: code, isHost: true, localPlayer: 'player' });
 
+          // Register game with server for reconnection support
+          const peerId = get().myPeerId;
+          if (peerId) {
+            registerGameWithServer(code, peerId);
+          }
+
+          // Set up auto-save to server
+          setupHostStateAutoSave(code);
+
           get().addLogEntry({
             type: 'system',
             player: null,
@@ -601,6 +613,113 @@ export const useMultiplayerStore = create<MultiplayerState & MultiplayerActions>
           set({ connectionStatus: 'error', connectionError: message });
           throw error;
         }
+      },
+
+      createPublicGame: async () => {
+        set({ connectionStatus: 'initializing', connectionError: null });
+
+        peerService.setOnPeerReady((peerId) => {
+          set({ myPeerId: peerId, connectionStatus: 'waiting' });
+        });
+
+        peerService.setOnConnected(() => {
+          set({
+            connectionStatus: 'connected',
+            opponentPeerId: peerService.getOpponentPeerId(),
+            disconnectTime: null,
+          });
+
+          // Send hello message
+          const state = get();
+          peerService.send({
+            type: 'hello',
+            nickname: state.nickname,
+            peerId: state.myPeerId!,
+          });
+        });
+
+        peerService.setOnMessage((message) => {
+          get().handleMessage(message);
+        });
+
+        peerService.setOnDisconnected(() => {
+          set({
+            connectionStatus: 'disconnected',
+            disconnectTime: Date.now(),
+          });
+          get().addLogEntry({
+            type: 'system',
+            player: null,
+            nickname: null,
+            message: 'Opponent disconnected',
+          });
+        });
+
+        peerService.setOnError((error) => {
+          set({
+            connectionStatus: 'error',
+            connectionError: error.message,
+          });
+        });
+
+        try {
+          const code = await peerService.createGame();
+          set({ gameCode: code, isHost: true, isPublicGame: true, localPlayer: 'player' });
+
+          // Register as public game with server
+          const state = get();
+          const peerId = state.myPeerId;
+          if (peerId) {
+            await fetch(`/api/games/${encodeURIComponent(code)}/register-public`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ peerId, nickname: state.nickname }),
+            });
+          }
+
+          // Set up auto-save to server
+          setupHostStateAutoSave(code);
+
+          get().addLogEntry({
+            type: 'system',
+            player: null,
+            nickname: null,
+            message: 'Searching for opponent...',
+          });
+
+          return code;
+        } catch (error) {
+          const message = error instanceof Error ? error.message : 'Failed to create game';
+          set({ connectionStatus: 'error', connectionError: message });
+          throw error;
+        }
+      },
+
+      cancelPublicGame: async () => {
+        const { gameCode, isPublicGame, connectionStatus } = get();
+
+        // Only cancel if we're a public game waiting for opponent
+        if (gameCode && isPublicGame && connectionStatus === 'waiting') {
+          try {
+            await fetch(`/api/games/${encodeURIComponent(gameCode)}/public`, {
+              method: 'DELETE',
+            });
+          } catch (error) {
+            console.error('Failed to remove public game:', error);
+          }
+        }
+
+        peerService.cleanup();
+        cleanupHostStateAutoSave();
+        set({
+          connectionStatus: 'disconnected',
+          opponentPeerId: null,
+          opponentNickname: null,
+          gameCode: null,
+          myPeerId: null,
+          isPublicGame: false,
+          opponentDrag: null,
+        });
       },
 
       joinGame: async (code) => {
@@ -647,6 +766,12 @@ export const useMultiplayerStore = create<MultiplayerState & MultiplayerActions>
           // Set up auto-save for guest's private state
           setupGuestStateAutoSave(code);
 
+          // Register guest with server for reconnection support
+          const peerId = get().myPeerId;
+          if (peerId) {
+            registerGuestWithServer(code, peerId);
+          }
+
           // Send hello message
           const state = get();
           peerService.send({
@@ -671,12 +796,14 @@ export const useMultiplayerStore = create<MultiplayerState & MultiplayerActions>
       disconnect: () => {
         peerService.cleanup();
         cleanupGuestStateAutoSave();
+        cleanupHostStateAutoSave();
         set({
           connectionStatus: 'disconnected',
           opponentPeerId: null,
           opponentNickname: null,
           gameCode: null,
           myPeerId: null,
+          isPublicGame: false,
           opponentDrag: null,
         });
       },
@@ -1202,6 +1329,83 @@ function cleanupGuestStateAutoSave(): void {
     guestStateSaveUnsubscribe = null;
   }
   clearGuestState();
+}
+
+// Server state save for reconnection support
+let serverStateSaveTimer: ReturnType<typeof setTimeout> | null = null;
+let serverStateSaveUnsubscribe: (() => void) | null = null;
+
+async function registerGameWithServer(gameCode: string, peerId: string): Promise<void> {
+  try {
+    await fetch(`/api/games/${encodeURIComponent(gameCode)}/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ peerId }),
+    });
+  } catch (error) {
+    console.error('Failed to register game with server:', error);
+  }
+}
+
+async function registerGuestWithServer(gameCode: string, peerId: string): Promise<void> {
+  try {
+    await fetch(`/api/games/${encodeURIComponent(gameCode)}/join`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ peerId }),
+    });
+  } catch (error) {
+    console.error('Failed to register guest with server:', error);
+  }
+}
+
+async function saveStateToServer(gameCode: string): Promise<void> {
+  try {
+    const state = getSerializedGameState();
+    await fetch(`/api/games/${encodeURIComponent(gameCode)}/state`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ state }),
+    });
+  } catch (error) {
+    console.error('Failed to save game state to server:', error);
+  }
+}
+
+function setupHostStateAutoSave(gameCode: string): void {
+  // Clean up any existing subscription
+  if (serverStateSaveUnsubscribe) {
+    serverStateSaveUnsubscribe();
+  }
+  if (serverStateSaveTimer) {
+    clearTimeout(serverStateSaveTimer);
+  }
+
+  // Debounced save - waits 5 seconds after last change
+  const debouncedSave = () => {
+    if (serverStateSaveTimer) {
+      clearTimeout(serverStateSaveTimer);
+    }
+    serverStateSaveTimer = setTimeout(() => {
+      saveStateToServer(gameCode);
+    }, 5000);
+  };
+
+  // Subscribe to game store changes
+  serverStateSaveUnsubscribe = useGameStore.subscribe(() => {
+    debouncedSave();
+  });
+}
+
+function cleanupHostStateAutoSave(): void {
+  if (serverStateSaveUnsubscribe) {
+    serverStateSaveUnsubscribe();
+    serverStateSaveUnsubscribe = null;
+  }
+  if (serverStateSaveTimer) {
+    clearTimeout(serverStateSaveTimer);
+    serverStateSaveTimer = null;
+  }
 }
 
 // Hook to check if it's the local player's turn

@@ -134,6 +134,13 @@ export interface RevealedHandState {
   nickname: string;
 }
 
+// Public game listing for matchmaking
+export interface PublicGame {
+  gameCode: string;
+  hostNickname: string;
+  waitTimeSeconds: number;
+}
+
 // Multiplayer state
 export interface MultiplayerState {
   // Identity
@@ -146,6 +153,7 @@ export interface MultiplayerState {
   connectionStatus: ConnectionStatus;
   connectionError: string | null;
   isHost: boolean;
+  isPublicGame: boolean;
   gameCode: string | null;
 
   // Perspective - which side the local player controls

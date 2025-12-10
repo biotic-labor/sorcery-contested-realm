@@ -38,6 +38,44 @@ volumes:
   - ./public/assets/cards:/app/dist/assets/cards:ro
 ```
 
+**Persistent Data:** Game state is stored in SQLite at `/app/data/games.db`. Mount for persistence:
+```yaml
+volumes:
+  - ./data:/app/data
+```
+
+## Server State Recovery
+
+The server stores game state for reconnection support:
+- Host registers game with server on creation
+- Guest registers on join
+- Host auto-saves state every 5 seconds (debounced)
+- Games auto-delete after 24 hours
+- Public games waiting >10 minutes auto-delete
+
+**API Endpoints:**
+- `POST /api/games/:code/register` - Register private game (host)
+- `POST /api/games/:code/register-public` - Register public game with nickname
+- `POST /api/games/:code/join` - Guest joins game
+- `POST /api/games/:code/reconnect` - Update peer ID on reconnect
+- `GET /api/games/:code` - Get game info (peer IDs)
+- `GET /api/games/public` - List available public games
+- `DELETE /api/games/:code/public` - Remove from public listing
+- `POST /api/games/:code/state` - Save game state
+- `GET /api/games/:code/state` - Get saved state
+- `DELETE /api/games/:code` - Delete game
+
+## Public Matchmaking
+
+Players can create games in two modes:
+- **Play with Friend**: Private game with shareable code
+- **Find Match**: Public game visible in lobby list
+
+Public games show host nickname and wait time. Games removed when:
+- Host cancels
+- Guest joins
+- Waiting >10 minutes (stale cleanup)
+
 ## Hotkeys
 
 | Key | Action |
