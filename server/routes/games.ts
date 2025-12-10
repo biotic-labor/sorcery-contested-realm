@@ -10,7 +10,7 @@ import {
   registerPublicGame,
   getPublicGames,
   removePublicGame,
-} from '../db';
+} from '../db.js';
 
 const router = Router();
 
