@@ -10,7 +10,7 @@ import { DiscardPile } from '../DiscardPile';
 import { DeckImportButton } from '../DeckImport';
 import { GameLog } from '../GameLog';
 import { SpellStack } from '../SpellStack';
-import { Card } from '../Card';
+import { Card, CardBack } from '../Card';
 import { RevealHandModal } from '../RevealHand';
 import { PingIndicator } from '../PingIndicator';
 import { useGameStore } from '../../hooks/useGameState';
@@ -77,6 +77,7 @@ export function Game({ onLeave }: GameProps) {
     moveAvatar,
     placeUnitOnVertex,
     removeCardFromVertex,
+    removeTopCardFromDeck,
   } = useGameActions();
 
   const {
@@ -94,6 +95,8 @@ export function Game({ onLeave }: GameProps) {
 
   // Track if current drag is from board (set during dragStart)
   const isDraggingFromBoard = useRef(false);
+  // Track if current drag is from deck (to show card back in overlay)
+  const draggingFromDeckType = useRef<DeckType | null>(null);
 
   // Custom modifier to fix DragOverlay offset when Player 2 drags from rotated board
   const rotatedBoardModifier: Modifier = useCallback(({ transform, activeNodeRect }) => {
@@ -156,18 +159,24 @@ export function Game({ onLeave }: GameProps) {
     const card = active.data.current?.card as CardInstance | undefined;
     const source = active.data.current?.source as string | undefined;
     const sourcePosition = active.data.current?.sourcePosition as string | undefined;
+    const deckType = active.data.current?.deckType as DeckType | undefined;
 
     // Track if dragging from board for the modifier
     isDraggingFromBoard.current = source === 'board';
+    // Track if dragging from deck (to show card back instead of card face)
+    draggingFromDeckType.current = source === 'deck' ? (deckType || null) : null;
 
     if (card) {
-      setActiveCard(card);
+      // Only set activeCard if not from deck (we show card back for deck drags)
+      if (source !== 'deck') {
+        setActiveCard(card);
+      }
 
       // Clear any stale opponent drag ghost when we start dragging
       if (isMultiplayer) {
         setOpponentDrag(null);
         // Only broadcast card data for cards from visible zones (board, graveyard, spell-stack).
-        // Cards from hand are hidden - don't leak what card is being played.
+        // Cards from hand and deck are hidden - don't leak what card is being played.
         const isFromVisibleZone = source === 'board' || source === 'graveyard' || source === 'spell-stack';
         peerService.send({
           type: 'drag_start',
@@ -200,6 +209,8 @@ export function Game({ onLeave }: GameProps) {
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
     setActiveCard(null);
+    // Clear deck drag tracking
+    draggingFromDeckType.current = null;
 
     // Broadcast drag end in multiplayer
     if (isMultiplayer) {
@@ -217,6 +228,7 @@ export function Game({ onLeave }: GameProps) {
     const activeIndex = active.data.current?.index as number | undefined;
     const activePlayer = active.data.current?.player as Player | undefined;
     const sourcePlayer = active.data.current?.sourcePlayer as Player | undefined;
+    const sourceDeckType = active.data.current?.deckType as DeckType | undefined;
 
     if (!card) return;
 
@@ -291,6 +303,8 @@ export function Game({ onLeave }: GameProps) {
         removeFromGraveyard(card.id, sourcePlayer);
       } else if (source === 'spell-stack' && sourcePlayer) {
         removeFromSpellStack(card.id, sourcePlayer);
+      } else if (source === 'deck' && activePlayer && sourceDeckType) {
+        removeTopCardFromDeck(activePlayer, sourceDeckType);
       }
       return;
     }
@@ -299,6 +313,7 @@ export function Game({ onLeave }: GameProps) {
     if (overId.startsWith('hand-')) {
       const handPlayer = mapUiPlayerToData(overId.split('-')[1] as Player);
 
+      // Card goes to hand face-up (normal draw behavior)
       addToHand(card, handPlayer);
 
       if (source === 'board' && sourcePosition) {
@@ -312,6 +327,8 @@ export function Game({ onLeave }: GameProps) {
         removeFromGraveyard(card.id, sourcePlayer);
       } else if (source === 'spell-stack' && sourcePlayer) {
         removeFromSpellStack(card.id, sourcePlayer);
+      } else if (source === 'deck' && activePlayer && sourceDeckType) {
+        removeTopCardFromDeck(activePlayer, sourceDeckType);
       }
       return;
     }
@@ -327,7 +344,9 @@ export function Game({ onLeave }: GameProps) {
 
       const stackPlayer = mapUiPlayerToData(uiStackPlayer);
 
-      addToSpellStack(card, stackPlayer);
+      // Cards from deck are placed face-down
+      const cardToPlace = source === 'deck' ? { ...card, faceDown: true } : card;
+      addToSpellStack(cardToPlace, stackPlayer);
 
       if (source === 'hand') {
         removeFromHand(card.id, card.owner);
@@ -342,6 +361,8 @@ export function Game({ onLeave }: GameProps) {
         removeFromGraveyard(card.id, sourcePlayer);
       } else if (source === 'spell-stack' && sourcePlayer) {
         removeFromSpellStack(card.id, sourcePlayer);
+      } else if (source === 'deck' && activePlayer && sourceDeckType) {
+        removeTopCardFromDeck(activePlayer, sourceDeckType);
       }
       return;
     }
@@ -355,7 +376,9 @@ export function Game({ onLeave }: GameProps) {
 
       const vertexId = overId as string;
 
-      placeUnitOnVertex(card, vertexId);
+      // Cards from deck are placed face-down
+      const cardToPlace = source === 'deck' ? { ...card, faceDown: true } : card;
+      placeUnitOnVertex(cardToPlace, vertexId);
 
       if (source === 'hand') {
         removeFromHand(card.id, card.owner);
@@ -370,6 +393,8 @@ export function Game({ onLeave }: GameProps) {
         removeFromGraveyard(card.id, sourcePlayer);
       } else if (source === 'spell-stack' && sourcePlayer) {
         removeFromSpellStack(card.id, sourcePlayer);
+      } else if (source === 'deck' && activePlayer && sourceDeckType) {
+        removeTopCardFromDeck(activePlayer, sourceDeckType);
       }
       return;
     }
@@ -416,6 +441,15 @@ export function Game({ onLeave }: GameProps) {
         placeUnitOnSite(card, targetPosition);
       }
       removeFromSpellStack(card.id, sourcePlayer);
+    } else if (source === 'deck' && activePlayer && sourceDeckType) {
+      // Cards from deck are placed face-down
+      const cardToPlace = { ...card, faceDown: true };
+      if (cardToPlace.cardData.guardian.type === 'Site') {
+        placeCardOnSite(cardToPlace, targetPosition);
+      } else {
+        placeUnitOnSite(cardToPlace, targetPosition);
+      }
+      removeTopCardFromDeck(activePlayer, sourceDeckType);
     }
   };
 
@@ -461,6 +495,8 @@ export function Game({ onLeave }: GameProps) {
               <span className="mx-2">|</span>
               <kbd className="px-2 py-1 bg-gray-700 rounded">U</kbd> under/over
               <span className="mx-2">|</span>
+              <kbd className="px-2 py-1 bg-gray-700 rounded">F</kbd> flip
+              <span className="mx-2">|</span>
               <kbd className="px-2 py-1 bg-gray-700 rounded">R</kbd> shuffle
               <span className="mx-2">|</span>
               <kbd className="px-2 py-1 bg-gray-700 rounded">W</kbd> ping
@@ -503,7 +539,10 @@ export function Game({ onLeave }: GameProps) {
 
           {/* Card Preview Panel */}
           <div className="absolute left-4 top-1/2 -translate-y-1/2 z-30">
-            <CardPreview card={hoveredCard} />
+            <CardPreview
+              card={hoveredCard}
+              hideIfFaceDown={hoveredCard?.owner !== (isGuest ? 'opponent' : 'player')}
+            />
           </div>
 
           {/* Right side: Spell Stacks and Player Stats */}
@@ -523,9 +562,11 @@ export function Game({ onLeave }: GameProps) {
 
       {/* Drag overlay - shows card being dragged */}
       <DragOverlay modifiers={[rotatedBoardModifier]}>
-        {activeCard && (
+        {draggingFromDeckType.current ? (
+          <CardBack size="medium" deckType={draggingFromDeckType.current} />
+        ) : activeCard ? (
           <Card card={activeCard} size="medium" />
-        )}
+        ) : null}
       </DragOverlay>
 
       {/* Revealed hand modal - shown when opponent reveals their hand */}

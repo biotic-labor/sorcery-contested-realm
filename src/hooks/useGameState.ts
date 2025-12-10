@@ -82,6 +82,9 @@ interface GameActions {
   // Card counters
   adjustCardCounter: (cardId: string, amount: number) => void;
 
+  // Card flip (face-down/face-up)
+  flipCard: (cardId: string) => void;
+
   // Card under/over toggle
   toggleCardUnder: (cardId: string) => void;
 
@@ -118,6 +121,9 @@ interface GameActions {
   // Deck search
   peekDeck: (player: Player, deckType: DeckType, count: number) => CardInstance[];
   returnCardsToDeck: (cards: CardInstance[], player: Player, deckType: DeckType, position: 'top' | 'bottom') => void;
+
+  // Remove top card from deck (for drag operations)
+  removeTopCardFromDeck: (player: Player, deckType: DeckType) => CardInstance | null;
 
   // Graveyard
   addToGraveyard: (card: CardInstance, player: Player) => void;
@@ -400,6 +406,49 @@ export const useGameStore = create<GameState & GameActions>((set) => ({
     });
   },
 
+  flipCard: (cardId) => {
+    set((state) => {
+      // Helper to toggle faceDown on a card
+      const toggleFaceDown = (card: CardInstance): CardInstance => {
+        return { ...card, faceDown: !card.faceDown };
+      };
+
+      // Check board
+      const newBoard = state.board.map((row) =>
+        row.map((site) => ({
+          ...site,
+          siteCard: site.siteCard?.id === cardId
+            ? toggleFaceDown(site.siteCard)
+            : site.siteCard,
+          units: site.units.map((u) =>
+            u.id === cardId ? toggleFaceDown(u) : u
+          ),
+          underCards: site.underCards.map((u) =>
+            u.id === cardId ? toggleFaceDown(u) : u
+          ),
+        }))
+      );
+
+      // Check avatars
+      const newAvatars = { ...state.avatars };
+      for (const key of Object.keys(newAvatars)) {
+        if (newAvatars[key].id === cardId) {
+          newAvatars[key] = toggleFaceDown(newAvatars[key]);
+        }
+      }
+
+      // Check vertices
+      const newVertices = { ...state.vertices };
+      for (const key of Object.keys(newVertices)) {
+        newVertices[key] = newVertices[key].map((u) =>
+          u.id === cardId ? toggleFaceDown(u) : u
+        );
+      }
+
+      return { board: newBoard, avatars: newAvatars, vertices: newVertices };
+    });
+  },
+
   toggleCardUnder: (cardId) => {
     set((state) => {
       const newBoard = state.board.map((row) =>
@@ -645,6 +694,23 @@ export const useGameStore = create<GameState & GameActions>((set) => ({
         return { [deckKey]: [...deck, ...cards] };
       }
     });
+  },
+
+  removeTopCardFromDeck: (player, deckType) => {
+    const state = useGameStore.getState();
+    const deckKey = `${player}${deckType === 'site' ? 'Site' : 'Spell'}Deck` as keyof GameState;
+    const deck = state[deckKey] as CardInstance[];
+
+    if (deck.length === 0) return null;
+
+    const topCard = deck[0];
+
+    set(() => {
+      const currentDeck = [...(useGameStore.getState()[deckKey] as CardInstance[])];
+      return { [deckKey]: currentDeck.slice(1) };
+    });
+
+    return topCard;
   },
 
   addToGraveyard: (card, player) => {

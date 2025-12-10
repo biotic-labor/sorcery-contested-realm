@@ -8,7 +8,7 @@ export function useHotkeys() {
   const { hoveredCard, selectedCard, hoveredDeck } = useGameStore();
 
   // Broadcasted actions from useGameActions
-  const { rotateCard, toggleCardUnder, drawCards, shuffleDeck } = useGameActions();
+  const { rotateCard, toggleCardUnder, flipCard, drawCards, shuffleDeck } = useGameActions();
 
   // Perspective mapping for multiplayer
   const { localPlayer, connectionStatus, sendPing } = useMultiplayerStore();
@@ -55,6 +55,14 @@ export function useHotkeys() {
         }
       }
 
+      // F key to flip card face-down/face-up
+      if (event.key === 'f' || event.key === 'F') {
+        const targetCard = hoveredCard || selectedCard;
+        if (targetCard) {
+          flipCard(targetCard.id);
+        }
+      }
+
       // Number keys 1-9 to draw cards from hovered deck
       if (event.key >= '1' && event.key <= '9' && hoveredDeck) {
         const count = parseInt(event.key, 10);
@@ -80,5 +88,5 @@ export function useHotkeys() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [hoveredCard, selectedCard, rotateCard, toggleCardUnder, hoveredDeck, drawCards, shuffleDeck, isGuest, sendPing]);
+  }, [hoveredCard, selectedCard, rotateCard, toggleCardUnder, flipCard, hoveredDeck, drawCards, shuffleDeck, isGuest, sendPing]);
 }

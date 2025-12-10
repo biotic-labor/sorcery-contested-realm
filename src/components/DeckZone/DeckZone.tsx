@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useDroppable } from '@dnd-kit/core';
+import { useDroppable, useDraggable } from '@dnd-kit/core';
 import { useGameStore } from '../../hooks/useGameState';
 import { useGameActions } from '../../hooks/useGameActions';
 import { useMultiplayerStore } from '../../hooks/useMultiplayer';
@@ -61,10 +61,34 @@ export function DeckZone({ player, deckType, cards, bottomAddTimestamp }: DeckZo
 
   const isShuffling = shufflingDeck?.player === dataPlayer && shufflingDeck?.deckType === deckType;
   const dropId = `deck-${player}-${deckType}`;
+  const dragId = `deck-drag-${player}-${deckType}`;
 
-  const { isOver, setNodeRef } = useDroppable({
+  const { isOver, setNodeRef: setDropRef } = useDroppable({
     id: dropId,
   });
+
+  // Get top card for dragging
+  const topCard = cards[0];
+
+  // Only allow dragging from player's own deck
+  const canDrag = player === 'player' && cards.length > 0;
+
+  const { attributes, listeners, setNodeRef: setDragRef, isDragging } = useDraggable({
+    id: dragId,
+    data: {
+      card: topCard,
+      source: 'deck',
+      deckType,
+      player: dataPlayer,
+    },
+    disabled: !canDrag,
+  });
+
+  // Combine refs for both droppable and draggable
+  const setNodeRef = (node: HTMLElement | null) => {
+    setDropRef(node);
+    setDragRef(node);
+  };
 
   const cardBackUrl = CARD_BACK_URLS[deckType];
   const borderColor = isOver ? '#22c55e' : '#6b7280';
@@ -134,6 +158,8 @@ export function DeckZone({ player, deckType, cards, bottomAddTimestamp }: DeckZo
     <>
     <div
       ref={setNodeRef}
+      {...attributes}
+      {...listeners}
       onMouseEnter={() => setHoveredDeck({ player, deckType })}
       onMouseLeave={() => setHoveredDeck(null)}
       onContextMenu={handleContextMenu}
@@ -151,8 +177,9 @@ export function DeckZone({ player, deckType, cards, bottomAddTimestamp }: DeckZo
         alignItems: 'center',
         justifyContent: 'center',
         position: 'relative',
-        cursor: 'pointer',
+        cursor: canDrag ? 'grab' : 'pointer',
         transition: 'border-color 0.15s ease',
+        opacity: isDragging ? 0.5 : 1,
       }}
     >
       {/* Spinning cards during shuffle */}

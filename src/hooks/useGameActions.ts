@@ -103,6 +103,11 @@ export function useGameActions() {
     broadcast('adjustCardCounter', { cardId, amount });
   }, [gameStore, broadcast]);
 
+  const flipCard = useCallback((cardId: string) => {
+    gameStore.flipCard(cardId);
+    broadcast('flipCard', { cardId });
+  }, [gameStore, broadcast]);
+
   // Hand management
   const addToHand = useCallback((card: CardInstance, player: Player) => {
     gameStore.addToHand(card, player);
@@ -242,6 +247,13 @@ export function useGameActions() {
     });
   }, [gameStore, broadcast]);
 
+  // Remove top card from deck (for drag operations)
+  const removeTopCardFromDeck = useCallback((player: Player, deckType: DeckType) => {
+    const card = gameStore.removeTopCardFromDeck(player, deckType);
+    broadcast('removeTopCardFromDeck', { player, deckType });
+    return card;
+  }, [gameStore, broadcast]);
+
   // Graveyard
   const addToGraveyard = useCallback((card: CardInstance, player: Player) => {
     gameStore.addToGraveyard(card, player);
@@ -361,6 +373,7 @@ export function useGameActions() {
     rotateCard,
     toggleCardUnder,
     adjustCardCounter,
+    flipCard,
     addToHand,
     removeFromHand,
     reorderHand,
@@ -374,6 +387,7 @@ export function useGameActions() {
     putCardOnTop,
     putCardOnBottom,
     returnCardsToDeck,
+    removeTopCardFromDeck,
     addToGraveyard,
     removeFromGraveyard,
     addToSpellStack,

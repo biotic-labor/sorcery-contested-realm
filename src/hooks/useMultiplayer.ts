@@ -257,6 +257,10 @@ function applyRemoteAction(
       gameStore.adjustCardCounter(payload.cardId as string, payload.amount as number);
       break;
     }
+    case 'flipCard': {
+      gameStore.flipCard(payload.cardId as string);
+      break;
+    }
     case 'addToHand': {
       // DO NOT swap - data should go in same slot on both clients
       const card = payload.card as CardInstance;
@@ -390,6 +394,13 @@ function applyRemoteAction(
       const deckType = payload.deckType as 'site' | 'spell';
       const position = payload.position as 'top' | 'bottom';
       gameStore.returnCardsToDeck(cards, player, deckType, position);
+      break;
+    }
+    case 'removeTopCardFromDeck': {
+      // DO NOT swap - data should go in same slot on both clients
+      const player = payload.player as Player;
+      const deckType = payload.deckType as 'site' | 'spell';
+      gameStore.removeTopCardFromDeck(player, deckType);
       break;
     }
     case 'addToGraveyard': {

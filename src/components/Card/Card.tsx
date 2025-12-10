@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { CardInstance, getCardImageUrl } from '../../types';
+import { CardInstance, getCardImageUrl, getCardBackUrl } from '../../types';
 
 interface CardProps {
   card: CardInstance;
@@ -53,6 +53,7 @@ export function Card({
   const cardType = card.cardData.guardian.type;
   const isSite = cardType === 'Site';
   const isTapped = card.rotation === 90;
+  const isFaceDown = card.faceDown === true;
 
   // Sites are rotated 90 degrees to display horizontally
   // Use horizontal container for sites, portrait for others
@@ -62,6 +63,9 @@ export function Card({
 
   // Sites need their image rotated 90 degrees within the horizontal container
   const imageRotation = isSite ? 'rotate(90deg)' : undefined;
+
+  // Determine the card back type based on card type
+  const cardBackType: 'site' | 'spell' = isSite ? 'site' : 'spell';
 
   return (
     <div
@@ -78,45 +82,91 @@ export function Card({
         width: cardSize.width,
         height: cardSize.height,
         transform: isTapped ? 'rotate(90deg)' : undefined,
-        overflow: 'hidden',
+        perspective: '1000px',
       }}
     >
-      {!imageError ? (
-        <img
-          src={getCardImageUrl(card.variant.slug)}
-          alt={card.cardData.name}
-          className="rounded-lg shadow-lg"
-          style={{
-            width: isSite ? cardSize.height : '100%',
-            height: isSite ? cardSize.width : '100%',
-            objectFit: 'cover',
-            transform: imageRotation,
-            transformOrigin: 'center center',
-            position: isSite ? 'absolute' : undefined,
-            top: isSite ? '50%' : undefined,
-            left: isSite ? '50%' : undefined,
-            marginTop: isSite ? -(cardSize.width / 2) : undefined,
-            marginLeft: isSite ? -(cardSize.height / 2) : undefined,
-          }}
-          onError={() => setImageError(true)}
-        />
-      ) : (
+      {/* Card flip container */}
+      <div
+        style={{
+          width: '100%',
+          height: '100%',
+          position: 'relative',
+          transformStyle: 'preserve-3d',
+          transition: 'transform 0.4s ease-in-out',
+          transform: isFaceDown ? 'rotateY(180deg)' : 'rotateY(0deg)',
+        }}
+      >
+        {/* Front face (card image) */}
         <div
-          className="w-full h-full rounded-lg shadow-lg flex flex-col items-center justify-center p-2 text-white text-center"
-          style={{ backgroundColor: bgColor }}
+          style={{
+            position: 'absolute',
+            width: '100%',
+            height: '100%',
+            backfaceVisibility: 'hidden',
+            overflow: 'hidden',
+          }}
         >
-          <div className="text-xs font-bold truncate w-full">{card.cardData.name}</div>
-          <div className="text-xs opacity-75">{cardType}</div>
-          {card.cardData.guardian.cost !== null && (
-            <div className="text-lg font-bold mt-1">{card.cardData.guardian.cost}</div>
-          )}
-          {card.cardData.guardian.attack !== null && (
-            <div className="text-xs mt-1">
-              {card.cardData.guardian.attack}/{card.cardData.guardian.defence}
+          {!imageError ? (
+            <img
+              src={getCardImageUrl(card.variant.slug)}
+              alt={card.cardData.name}
+              className="rounded-lg shadow-lg"
+              style={{
+                width: isSite ? cardSize.height : '100%',
+                height: isSite ? cardSize.width : '100%',
+                objectFit: 'cover',
+                transform: imageRotation,
+                transformOrigin: 'center center',
+                position: isSite ? 'absolute' : undefined,
+                top: isSite ? '50%' : undefined,
+                left: isSite ? '50%' : undefined,
+                marginTop: isSite ? -(cardSize.width / 2) : undefined,
+                marginLeft: isSite ? -(cardSize.height / 2) : undefined,
+              }}
+              onError={() => setImageError(true)}
+            />
+          ) : (
+            <div
+              className="w-full h-full rounded-lg shadow-lg flex flex-col items-center justify-center p-2 text-white text-center"
+              style={{ backgroundColor: bgColor }}
+            >
+              <div className="text-xs font-bold truncate w-full">{card.cardData.name}</div>
+              <div className="text-xs opacity-75">{cardType}</div>
+              {card.cardData.guardian.cost !== null && (
+                <div className="text-lg font-bold mt-1">{card.cardData.guardian.cost}</div>
+              )}
+              {card.cardData.guardian.attack !== null && (
+                <div className="text-xs mt-1">
+                  {card.cardData.guardian.attack}/{card.cardData.guardian.defence}
+                </div>
+              )}
             </div>
           )}
         </div>
-      )}
+
+        {/* Back face (card back) */}
+        <div
+          style={{
+            position: 'absolute',
+            width: '100%',
+            height: '100%',
+            backfaceVisibility: 'hidden',
+            transform: 'rotateY(180deg)',
+            overflow: 'hidden',
+          }}
+        >
+          <img
+            src={getCardBackUrl(cardBackType)}
+            alt="Card back"
+            className="rounded-lg shadow-lg"
+            style={{
+              width: '100%',
+              height: '100%',
+              objectFit: 'cover',
+            }}
+          />
+        </div>
+      </div>
 
       {isTapped && (
         <div className="absolute inset-0 bg-black bg-opacity-30 rounded-lg flex items-center justify-center">

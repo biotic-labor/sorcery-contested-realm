@@ -1,8 +1,9 @@
-import { CardInstance, getCardImageUrl } from '../../types';
+import { CardInstance, getCardImageUrl, getCardBackUrl } from '../../types';
 import { useState, useEffect } from 'react';
 
 interface CardPreviewProps {
   card: CardInstance | null;
+  hideIfFaceDown?: boolean; // If true, show card back for face-down cards
 }
 
 const typeColors: Record<string, string> = {
@@ -14,7 +15,7 @@ const typeColors: Record<string, string> = {
   Avatar: '#ec4899',
 };
 
-export function CardPreview({ card }: CardPreviewProps) {
+export function CardPreview({ card, hideIfFaceDown = false }: CardPreviewProps) {
   const [imageError, setImageError] = useState(false);
 
   // Reset image error when card changes
@@ -59,6 +60,7 @@ export function CardPreview({ card }: CardPreviewProps) {
   const { guardian } = cardData;
   const bgColor = typeColors[guardian.type] || '#6b7280';
   const isSite = guardian.type === 'Site';
+  const isFaceDown = hideIfFaceDown && card.faceDown;
 
   // Container is always 280x280, card is centered inside
   const containerSize = 280;
@@ -88,7 +90,17 @@ export function CardPreview({ card }: CardPreviewProps) {
           borderRadius: '8px',
         }}
       >
-        {!imageError ? (
+        {isFaceDown ? (
+          <img
+            src={getCardBackUrl(isSite ? 'site' : 'spell')}
+            alt="Card back"
+            style={{
+              width: '100%',
+              height: '100%',
+              objectFit: 'cover',
+            }}
+          />
+        ) : !imageError ? (
           <img
             src={getCardImageUrl(variant.slug)}
             alt={cardData.name}

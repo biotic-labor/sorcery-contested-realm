@@ -81,6 +81,7 @@ Public games show host nickname and wait time. Games removed when:
 | Key | Action |
 |-----|--------|
 | `E` | Tap/untap hovered card (90 degree rotation) |
+| `F` | Flip card face-down/face-up |
 | `R` | Shuffle hovered deck |
 | `U` | Toggle card under/over site |
 | `W` | Ping at mouse location (visible to opponent) |

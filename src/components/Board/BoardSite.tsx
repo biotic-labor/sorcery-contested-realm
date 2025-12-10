@@ -83,7 +83,7 @@ export function BoardSite({
       {/* Avatar placeholder */}
       {showAvatarPlaceholder && (
         <div
-          className="absolute flex items-center justify-center"
+          className="absolute"
           style={{
             top: '50%',
             left: '50%',
@@ -95,14 +95,7 @@ export function BoardSite({
             borderRadius: '6px',
             zIndex: 1,
           }}
-        >
-          <span
-            className="text-xs text-center"
-            style={{ color: avatarZoneOwner === 'player' ? '#4ade80' : '#f87171' }}
-          >
-            Avatar
-          </span>
-        </div>
+        />
       )}
 
       {/* Site card (horizontal, as background) */}
