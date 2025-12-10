@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useGameStore } from './useGameState';
 import { useGameActions } from './useGameActions';
 import { useMultiplayerStore } from './useMultiplayer';
@@ -11,9 +11,20 @@ export function useHotkeys() {
   const { rotateCard, toggleCardUnder, drawCards, shuffleDeck } = useGameActions();
 
   // Perspective mapping for multiplayer
-  const { localPlayer, connectionStatus } = useMultiplayerStore();
+  const { localPlayer, connectionStatus, sendPing } = useMultiplayerStore();
   const isMultiplayer = connectionStatus === 'connected';
   const isGuest = isMultiplayer && localPlayer === 'opponent';
+
+  // Track mouse position for ping
+  const mousePos = useRef({ x: 0, y: 0 });
+
+  useEffect(() => {
+    const handleMouseMove = (event: MouseEvent) => {
+      mousePos.current = { x: event.clientX, y: event.clientY };
+    };
+    window.addEventListener('mousemove', handleMouseMove);
+    return () => window.removeEventListener('mousemove', handleMouseMove);
+  }, []);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -53,9 +64,14 @@ export function useHotkeys() {
           : hoveredDeck.player;
         drawCards(dataPlayer, hoveredDeck.deckType, count);
       }
+
+      // W key to ping at mouse location
+      if (event.key === 'w' || event.key === 'W') {
+        sendPing(mousePos.current.x, mousePos.current.y);
+      }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [hoveredCard, selectedCard, rotateCard, toggleCardUnder, hoveredDeck, drawCards, shuffleDeck, isGuest]);
+  }, [hoveredCard, selectedCard, rotateCard, toggleCardUnder, hoveredDeck, drawCards, shuffleDeck, isGuest, sendPing]);
 }

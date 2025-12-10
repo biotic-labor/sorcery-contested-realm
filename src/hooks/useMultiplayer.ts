@@ -13,6 +13,7 @@ import {
   ConnectionStatus,
   OpponentDragState,
   OpponentSearchState,
+  PingState,
 } from '../types/multiplayer';
 import { Player, CardInstance } from '../types';
 
@@ -48,6 +49,11 @@ interface MultiplayerActions {
 
   // Revealed hand
   clearRevealedHand: () => void;
+
+  // Ping
+  sendPing: (x: number, y: number) => void;
+  addPing: (ping: PingState) => void;
+  clearPing: () => void;
 
   // State sync
   sendFullSync: () => void;
@@ -493,6 +499,7 @@ export const useMultiplayerStore = create<MultiplayerState & MultiplayerActions>
       opponentDrag: null,
       opponentSearching: null,
       revealedHand: null,
+      activePing: null,
       gameLog: [],
       savedGames: [],
       disconnectTime: null,
@@ -772,6 +779,33 @@ export const useMultiplayerStore = create<MultiplayerState & MultiplayerActions>
 
       clearRevealedHand: () => {
         set({ revealedHand: null });
+      },
+
+      sendPing: (x, y) => {
+        const ping: PingState = {
+          x,
+          y,
+          timestamp: Date.now(),
+          isLocal: true,
+        };
+        set({ activePing: ping });
+        peerService.send({ type: 'ping', x, y });
+        // Auto-clear after animation duration
+        setTimeout(() => {
+          set((s) => (s.activePing?.timestamp === ping.timestamp ? { activePing: null } : s));
+        }, 1500);
+      },
+
+      addPing: (ping) => {
+        set({ activePing: ping });
+        // Auto-clear after animation duration
+        setTimeout(() => {
+          set((s) => (s.activePing?.timestamp === ping.timestamp ? { activePing: null } : s));
+        }, 1500);
+      },
+
+      clearPing: () => {
+        set({ activePing: null });
       },
 
       sendFullSync: () => {
@@ -1087,6 +1121,19 @@ export const useMultiplayerStore = create<MultiplayerState & MultiplayerActions>
               message: 'revealed their hand',
             });
             break;
+
+          case 'ping': {
+            // Transform coordinates for rotated board (guest view)
+            const isRotated = state.localPlayer === 'opponent';
+            const ping: PingState = {
+              x: isRotated ? window.innerWidth - message.x : message.x,
+              y: isRotated ? window.innerHeight - message.y : message.y,
+              timestamp: Date.now(),
+              isLocal: false,
+            };
+            get().addPing(ping);
+            break;
+          }
         }
       },
 

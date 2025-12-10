@@ -78,7 +78,10 @@ export type GameMessage =
   | { type: 'searching_deck'; player: Player; deckType: DeckType; searching: boolean; count?: number }
 
   // Hand reveal
-  | { type: 'reveal_hand'; cards: CardInstance[]; nickname: string };
+  | { type: 'reveal_hand'; cards: CardInstance[]; nickname: string }
+
+  // Ping indicator
+  | { type: 'ping'; x: number; y: number };
 
 // Game log entry
 export interface LogEntry {
@@ -108,6 +111,14 @@ export interface OpponentDragState {
   cardData?: CardData; // undefined for cards from hidden zones (hand)
   x: number;
   y: number;
+}
+
+// Ping state for visualization
+export interface PingState {
+  x: number;
+  y: number;
+  timestamp: number;
+  isLocal: boolean;
 }
 
 // Opponent deck search state for visualization
@@ -152,6 +163,9 @@ export interface MultiplayerState {
 
   // Revealed hand from opponent
   revealedHand: RevealedHandState | null;
+
+  // Active ping indicator
+  activePing: PingState | null;
 
   // In-game log and chat
   gameLog: LogEntry[];

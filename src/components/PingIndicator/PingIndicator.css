@@ -1,0 +1,49 @@
+.ping-container {
+  position: fixed;
+  pointer-events: none;
+  z-index: 60;
+  transform: translate(-50%, -50%);
+}
+
+.ping-ring {
+  position: absolute;
+  border-radius: 50%;
+  border: 3px solid;
+  animation: ping-expand 1.5s ease-out forwards;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.ping-ring-1 {
+  animation-delay: 0s;
+}
+
+.ping-ring-2 {
+  animation-delay: 0.15s;
+}
+
+.ping-ring-3 {
+  animation-delay: 0.3s;
+}
+
+.ping-local {
+  border-color: rgb(234, 179, 8);
+}
+
+.ping-opponent {
+  border-color: rgb(59, 130, 246);
+}
+
+@keyframes ping-expand {
+  0% {
+    width: 0;
+    height: 0;
+    opacity: 1;
+  }
+  100% {
+    width: 120px;
+    height: 120px;
+    opacity: 0;
+  }
+}

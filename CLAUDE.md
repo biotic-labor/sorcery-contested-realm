@@ -45,6 +45,7 @@ volumes:
 | `E` | Tap/untap hovered card (90 degree rotation) |
 | `R` | Shuffle hovered deck |
 | `U` | Toggle card under/over site |
+| `W` | Ping at mouse location (visible to opponent) |
 | `1-9` | Draw N cards from hovered deck |
 
 ## Card Counters

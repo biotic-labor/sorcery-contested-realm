@@ -12,6 +12,7 @@ import { GameLog } from '../GameLog';
 import { SpellStack } from '../SpellStack';
 import { Card } from '../Card';
 import { RevealHandModal } from '../RevealHand';
+import { PingIndicator } from '../PingIndicator';
 import { useGameStore } from '../../hooks/useGameState';
 import { useGameActions } from '../../hooks/useGameActions';
 import { useHotkeys } from '../../hooks/useHotkeys';
@@ -439,6 +440,8 @@ export function Game({ onLeave }: GameProps) {
               <kbd className="px-2 py-1 bg-gray-700 rounded">U</kbd> under/over
               <span className="mx-2">|</span>
               <kbd className="px-2 py-1 bg-gray-700 rounded">R</kbd> shuffle
+              <span className="mx-2">|</span>
+              <kbd className="px-2 py-1 bg-gray-700 rounded">W</kbd> ping
             </div>
           </div>
         </header>
@@ -508,6 +511,9 @@ export function Game({ onLeave }: GameProps) {
         nickname={revealedHand?.nickname ?? ''}
         onClose={clearRevealedHand}
       />
+
+      {/* Ping indicator - shows ripple when player presses W */}
+      <PingIndicator />
     </DndContext>
   );
 }
