@@ -65,9 +65,16 @@ export function useHotkeys() {
         drawCards(dataPlayer, hoveredDeck.deckType, count);
       }
 
-      // W key to ping at mouse location
+      // W key to ping at mouse location (relative to board)
       if (event.key === 'w' || event.key === 'W') {
-        sendPing(mousePos.current.x, mousePos.current.y);
+        const board = document.querySelector('[data-board-grid]');
+        if (board) {
+          const rect = board.getBoundingClientRect();
+          // Calculate position as percentage of board dimensions
+          const xPercent = (mousePos.current.x - rect.left) / rect.width;
+          const yPercent = (mousePos.current.y - rect.top) / rect.height;
+          sendPing(xPercent, yPercent);
+        }
       }
     };
 

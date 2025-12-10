@@ -781,15 +781,22 @@ export const useMultiplayerStore = create<MultiplayerState & MultiplayerActions>
         set({ revealedHand: null });
       },
 
-      sendPing: (x, y) => {
+      sendPing: (xPercent, yPercent) => {
+        // Convert percentages to screen coords for local display
+        const board = document.querySelector('[data-board-grid]');
+        if (!board) return;
+        const rect = board.getBoundingClientRect();
+        const screenX = rect.left + xPercent * rect.width;
+        const screenY = rect.top + yPercent * rect.height;
+
         const ping: PingState = {
-          x,
-          y,
+          x: screenX,
+          y: screenY,
           timestamp: Date.now(),
           isLocal: true,
         };
         set({ activePing: ping });
-        peerService.send({ type: 'ping', x, y });
+        peerService.send({ type: 'ping', x: xPercent, y: yPercent });
         // Auto-clear after animation duration
         setTimeout(() => {
           set((s) => (s.activePing?.timestamp === ping.timestamp ? { activePing: null } : s));
@@ -1123,11 +1130,21 @@ export const useMultiplayerStore = create<MultiplayerState & MultiplayerActions>
             break;
 
           case 'ping': {
-            // Transform coordinates for rotated board (guest view)
-            const isRotated = state.localPlayer === 'opponent';
+            // Message contains board-relative percentages (0-1)
+            // Mirror them since opponent's board is rotated 180 degrees
+            const xPercent = 1 - message.x;
+            const yPercent = 1 - message.y;
+
+            // Convert to screen coords using local board position
+            const board = document.querySelector('[data-board-grid]');
+            if (!board) break;
+            const rect = board.getBoundingClientRect();
+            const screenX = rect.left + xPercent * rect.width;
+            const screenY = rect.top + yPercent * rect.height;
+
             const ping: PingState = {
-              x: isRotated ? window.innerWidth - message.x : message.x,
-              y: isRotated ? window.innerHeight - message.y : message.y,
+              x: screenX,
+              y: screenY,
               timestamp: Date.now(),
               isLocal: false,
             };

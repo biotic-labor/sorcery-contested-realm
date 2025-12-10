@@ -27,6 +27,7 @@ interface GameProps {
 
 export function Game({ onLeave }: GameProps) {
   const [activeCard, setActiveCard] = useState<CardInstance | null>(null);
+  const [bottomAddTimestamps, setBottomAddTimestamps] = useState<Record<string, number>>({});
   const initialized = useRef(false);
 
   // Get state from game store (read-only)
@@ -225,10 +226,15 @@ export function Game({ onLeave }: GameProps) {
       const deckPlayer = mapUiPlayerToData(parts[1] as Player);
       const deckType = parts[2] as DeckType;
 
-      const isRightClick = event.activatorEvent instanceof PointerEvent && event.activatorEvent.button === 2;
+      const isShiftHeld = event.activatorEvent instanceof PointerEvent && event.activatorEvent.shiftKey;
+      const uiPlayer = parts[1] as Player;
 
-      if (isRightClick) {
+      if (isShiftHeld) {
         putCardOnBottom(card, deckPlayer, deckType);
+        setBottomAddTimestamps(prev => ({
+          ...prev,
+          [`${uiPlayer}-${deckType}`]: Date.now(),
+        }));
       } else {
         putCardOnTop(card, deckPlayer, deckType);
       }
@@ -442,6 +448,8 @@ export function Game({ onLeave }: GameProps) {
               <kbd className="px-2 py-1 bg-gray-700 rounded">R</kbd> shuffle
               <span className="mx-2">|</span>
               <kbd className="px-2 py-1 bg-gray-700 rounded">W</kbd> ping
+              <span className="mx-2">|</span>
+              <kbd className="px-2 py-1 bg-gray-700 rounded">Shift</kbd> bottom of deck
             </div>
           </div>
         </header>
@@ -451,8 +459,8 @@ export function Game({ onLeave }: GameProps) {
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <Hand player="opponent" size="small" />
             <div style={{ display: 'flex', gap: '8px', flexShrink: 0, alignItems: 'center' }}>
-              <DeckZone player="opponent" deckType="site" cards={theirSiteDeck} />
-              <DeckZone player="opponent" deckType="spell" cards={theirSpellDeck} />
+              <DeckZone player="opponent" deckType="site" cards={theirSiteDeck} bottomAddTimestamp={bottomAddTimestamps['opponent-site']} />
+              <DeckZone player="opponent" deckType="spell" cards={theirSpellDeck} bottomAddTimestamp={bottomAddTimestamps['opponent-spell']} />
               <DiscardPile player="opponent" cards={theirGraveyard} />
               {!isMultiplayer && <DeckImportButton player="opponent" />}
             </div>
@@ -470,8 +478,8 @@ export function Game({ onLeave }: GameProps) {
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <Hand player="player" size="small" />
             <div style={{ display: 'flex', gap: '8px', flexShrink: 0, alignItems: 'center' }}>
-              <DeckZone player="player" deckType="site" cards={mySiteDeck} />
-              <DeckZone player="player" deckType="spell" cards={mySpellDeck} />
+              <DeckZone player="player" deckType="site" cards={mySiteDeck} bottomAddTimestamp={bottomAddTimestamps['player-site']} />
+              <DeckZone player="player" deckType="spell" cards={mySpellDeck} bottomAddTimestamp={bottomAddTimestamps['player-spell']} />
               <DiscardPile player="player" cards={myGraveyard} />
               <DeckImportButton player="player" />
             </div>

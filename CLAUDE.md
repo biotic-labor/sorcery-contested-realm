@@ -46,6 +46,7 @@ volumes:
 | `R` | Shuffle hovered deck |
 | `U` | Toggle card under/over site |
 | `W` | Ping at mouse location (visible to opponent) |
+| `Shift` + drop | Put card on bottom of deck |
 | `1-9` | Draw N cards from hovered deck |
 
 ## Card Counters

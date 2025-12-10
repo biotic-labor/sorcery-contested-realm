@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useDroppable } from '@dnd-kit/core';
 import { useGameStore } from '../../hooks/useGameState';
 import { useGameActions } from '../../hooks/useGameActions';
@@ -10,6 +10,7 @@ interface DeckZoneProps {
   player: Player;
   deckType: DeckType;
   cards: CardInstance[];
+  bottomAddTimestamp?: number;
 }
 
 const CARD_BACK_URLS = {
@@ -17,11 +18,21 @@ const CARD_BACK_URLS = {
   spell: '/assets/card-backs/cardback-spellbook.png',
 };
 
-export function DeckZone({ player, deckType, cards }: DeckZoneProps) {
+export function DeckZone({ player, deckType, cards, bottomAddTimestamp }: DeckZoneProps) {
   // Local state for context menu and search modal
   const [contextMenuPos, setContextMenuPos] = useState<{ x: number; y: number } | null>(null);
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
   const [searchCards, setSearchCards] = useState<CardInstance[]>([]);
+  const [isBottomAdd, setIsBottomAdd] = useState(false);
+
+  // Trigger lift animation when a card is added to bottom
+  useEffect(() => {
+    if (bottomAddTimestamp) {
+      setIsBottomAdd(true);
+      const timer = setTimeout(() => setIsBottomAdd(false), 300);
+      return () => clearTimeout(timer);
+    }
+  }, [bottomAddTimestamp]);
 
   // Read-only state from store
   const { setHoveredDeck, shufflingDeck, peekDeck } = useGameStore();
@@ -126,6 +137,7 @@ export function DeckZone({ player, deckType, cards }: DeckZoneProps) {
       onMouseEnter={() => setHoveredDeck({ player, deckType })}
       onMouseLeave={() => setHoveredDeck(null)}
       onContextMenu={handleContextMenu}
+      className={isBottomAdd ? 'deck-bottom-add' : ''}
       style={{
         width: '80px',
         height: '110px',
@@ -301,11 +313,19 @@ export function DeckZone({ player, deckType, cards }: DeckZoneProps) {
       onPlayToBoard={handlePlayToBoard}
     />
 
-    {/* CSS for blinking animation */}
+    {/* CSS for animations */}
     <style>{`
       @keyframes blink {
         0%, 100% { opacity: 1; }
         50% { opacity: 0.3; }
+      }
+      @keyframes deck-lift {
+        0% { transform: translateY(0); }
+        40% { transform: translateY(-8px); }
+        100% { transform: translateY(0); }
+      }
+      .deck-bottom-add {
+        animation: deck-lift 0.3s ease-out;
       }
     `}</style>
     </>

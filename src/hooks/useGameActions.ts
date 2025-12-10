@@ -207,12 +207,28 @@ export function useGameActions() {
   const putCardOnTop = useCallback((card: CardInstance, player: Player, deckType: DeckType) => {
     gameStore.putCardOnTop(card, player, deckType);
     broadcast('putCardOnTop', { card: serializeCard(card), player, deckType });
-  }, [gameStore, broadcast]);
+    if (isMultiplayer) {
+      addLogEntry({
+        type: 'action',
+        player: localPlayer,
+        nickname,
+        message: `put a card on top of ${deckType} deck`,
+      });
+    }
+  }, [gameStore, broadcast, isMultiplayer, addLogEntry, localPlayer, nickname]);
 
   const putCardOnBottom = useCallback((card: CardInstance, player: Player, deckType: DeckType) => {
     gameStore.putCardOnBottom(card, player, deckType);
     broadcast('putCardOnBottom', { card: serializeCard(card), player, deckType });
-  }, [gameStore, broadcast]);
+    if (isMultiplayer) {
+      addLogEntry({
+        type: 'action',
+        player: localPlayer,
+        nickname,
+        message: `put a card on bottom of ${deckType} deck`,
+      });
+    }
+  }, [gameStore, broadcast, isMultiplayer, addLogEntry, localPlayer, nickname]);
 
   // Deck search - peekDeck is local only (opponent shouldn't see cards)
   // returnCardsToDeck broadcasts so opponent's deck state stays in sync

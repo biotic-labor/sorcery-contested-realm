@@ -91,6 +91,7 @@ export function Board() {
       >
         {/* 4 rows x 5 columns grid */}
         <div
+          data-board-grid
           style={{
             display: 'grid',
             gridTemplateColumns: 'repeat(5, 160px)',
