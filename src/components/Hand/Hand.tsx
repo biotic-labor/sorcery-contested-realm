@@ -128,7 +128,7 @@ export function Hand({ player, size = 'medium' }: HandProps) {
 
         {showAsCardBacks ? (
           // Show card backs for opponent in multiplayer (site vs spell backs)
-          <div className={`flex ${gap} overflow-x-auto pb-2`}>
+          <div className={`flex ${gap}`}>
             {hand.map((card) => (
               <CardBack key={card.id} size={size} deckType={card.sourceDeck} />
             ))}
@@ -136,7 +136,7 @@ export function Hand({ player, size = 'medium' }: HandProps) {
         ) : (
           // Show actual cards for local player
           <SortableContext items={hand.map(c => c.id)} strategy={horizontalListSortingStrategy}>
-            <div className={`flex ${gap} overflow-x-auto pb-2`}>
+            <div className={`flex ${gap}`}>
               {hand.map((card, index) => (
                 <SortableCard
                   key={card.id}
