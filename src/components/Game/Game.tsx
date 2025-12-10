@@ -29,6 +29,23 @@ export function Game({ onLeave }: GameProps) {
   const [activeCard, setActiveCard] = useState<CardInstance | null>(null);
   const [bottomAddTimestamps, setBottomAddTimestamps] = useState<Record<string, number>>({});
   const initialized = useRef(false);
+  const shiftHeldRef = useRef(false);
+
+  // Track shift key state for deck drop behavior
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Shift') shiftHeldRef.current = true;
+    };
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (e.key === 'Shift') shiftHeldRef.current = false;
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+    };
+  }, []);
 
   // Get state from game store (read-only)
   const {
@@ -226,10 +243,9 @@ export function Game({ onLeave }: GameProps) {
       const deckPlayer = mapUiPlayerToData(parts[1] as Player);
       const deckType = parts[2] as DeckType;
 
-      const isShiftHeld = event.activatorEvent instanceof PointerEvent && event.activatorEvent.shiftKey;
       const uiPlayer = parts[1] as Player;
 
-      if (isShiftHeld) {
+      if (shiftHeldRef.current) {
         putCardOnBottom(card, deckPlayer, deckType);
         setBottomAddTimestamps(prev => ({
           ...prev,
