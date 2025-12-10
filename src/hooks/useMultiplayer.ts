@@ -30,6 +30,9 @@ interface MultiplayerActions {
   createPublicGame: () => Promise<string>;
   cancelPublicGame: () => Promise<void>;
   joinGame: (code: string) => Promise<void>;
+  reconnectAsHost: () => Promise<void>;
+  reconnectAsGuest: () => Promise<void>;
+  clearSession: () => void;
   disconnect: () => void;
 
   // Messaging
@@ -804,7 +807,117 @@ export const useMultiplayerStore = create<MultiplayerState & MultiplayerActions>
         }
       },
 
-      disconnect: () => {
+      reconnectAsHost: async () => {
+        const { gameCode } = get();
+        if (!gameCode) {
+          throw new Error('No game session to reconnect to');
+        }
+
+        set({ connectionStatus: 'initializing', connectionError: null });
+
+        peerService.setOnPeerReady((peerId) => {
+          set({ myPeerId: peerId, connectionStatus: 'waiting' });
+        });
+
+        peerService.setOnConnected(() => {
+          const state = get();
+          const gameState = useGameStore.getState();
+
+          const hasGameState =
+            gameState.turnNumber > 1 ||
+            gameState.playerSiteDeck.length > 0 ||
+            gameState.opponentSiteDeck.length > 0 ||
+            gameState.playerHand.length > 0 ||
+            gameState.opponentHand.length > 0 ||
+            gameState.playerGraveyard.length > 0 ||
+            gameState.opponentGraveyard.length > 0 ||
+            gameState.board.some((row) =>
+              row.some((cell) => cell.siteCard || cell.units.length > 0)
+            );
+
+          set({
+            connectionStatus: 'connected',
+            opponentPeerId: peerService.getOpponentPeerId(),
+            disconnectTime: null,
+          });
+
+          peerService.send({
+            type: 'hello',
+            nickname: state.nickname,
+            peerId: state.myPeerId!,
+          });
+
+          if (hasGameState) {
+            get().sendFullSync();
+            get().addLogEntry({
+              type: 'system',
+              player: null,
+              nickname: null,
+              message: 'Opponent reconnected',
+            });
+          }
+        });
+
+        peerService.setOnMessage((message) => {
+          get().handleMessage(message);
+        });
+
+        peerService.setOnDisconnected(() => {
+          set({
+            connectionStatus: 'disconnected',
+            disconnectTime: Date.now(),
+          });
+          get().addLogEntry({
+            type: 'system',
+            player: null,
+            nickname: null,
+            message: 'Opponent disconnected',
+          });
+        });
+
+        peerService.setOnError((error) => {
+          set({
+            connectionStatus: 'error',
+            connectionError: error.message,
+          });
+        });
+
+        try {
+          // Re-create peer with the SAME game code
+          await peerService.createGameWithCode(gameCode);
+          set({ isHost: true, localPlayer: 'player' });
+
+          const peerId = get().myPeerId;
+          if (peerId) {
+            registerGameWithServer(gameCode, peerId);
+          }
+
+          setupHostStateAutoSave(gameCode);
+
+          get().addLogEntry({
+            type: 'system',
+            player: null,
+            nickname: null,
+            message: `Reconnected to game. Code: ${gameCode}`,
+          });
+        } catch (error) {
+          const message = error instanceof Error ? error.message : 'Failed to reconnect';
+          set({ connectionStatus: 'error', connectionError: message });
+          throw error;
+        }
+      },
+
+      reconnectAsGuest: async () => {
+        const { gameCode } = get();
+        if (!gameCode) {
+          throw new Error('No game session to reconnect to');
+        }
+
+        // Use existing joinGame logic
+        await get().joinGame(gameCode);
+      },
+
+      clearSession: () => {
         peerService.cleanup();
         cleanupGuestStateAutoSave();
         cleanupHostStateAutoSave();
@@ -813,6 +926,23 @@ export const useMultiplayerStore = create<MultiplayerState & MultiplayerActions>
           opponentPeerId: null,
           opponentNickname: null,
           gameCode: null,
+          myPeerId: null,
+          isHost: false,
+          isPublicGame: false,
+          localPlayer: 'player',
+          opponentDrag: null,
+        });
+      },
+
+      disconnect: () => {
+        peerService.cleanup();
+        cleanupGuestStateAutoSave();
+        cleanupHostStateAutoSave();
+        // Keep gameCode, isHost, localPlayer for reconnection
+        set({
+          connectionStatus: 'disconnected',
+          opponentPeerId: null,
+          opponentNickname: null,
           myPeerId: null,
           isPublicGame: false,
           opponentDrag: null,
@@ -1108,63 +1238,91 @@ export const useMultiplayerStore = create<MultiplayerState & MultiplayerActions>
             // Guest receives host's state. Try to restore our private data from:
             // 1. Current memory (if we didn't refresh)
             // 2. localStorage (if we refreshed but saved state exists)
-            // 3. Fall back to host's data (hidden placeholders)
+            // 3. Server (most reliable for reconnects)
+            // 4. Fall back to host's data (hidden placeholders)
             const currentState = useGameStore.getState();
             const hasMemoryData =
               currentState.opponentHand.length > 0 ||
               currentState.opponentSiteDeck.length > 0 ||
               currentState.opponentSpellDeck.length > 0;
 
-            // Try localStorage if memory is empty
-            const savedState = !hasMemoryData && state.gameCode
-              ? loadGuestState(state.gameCode)
-              : null;
-
-            const mergedState: SerializedGameState = {
-              // Shared board state from host
-              board: message.state.board,
-              avatars: message.state.avatars,
-              vertices: message.state.vertices,
-              // Host's data (stored in player* slots)
-              playerHand: message.state.playerHand,
-              playerSiteDeck: message.state.playerSiteDeck,
-              playerSpellDeck: message.state.playerSpellDeck,
-              playerGraveyard: message.state.playerGraveyard,
-              playerSpellStack: message.state.playerSpellStack || [],
-              playerLife: message.state.playerLife,
-              playerMana: message.state.playerMana,
-              playerManaTotal: message.state.playerManaTotal,
-              playerThresholds: message.state.playerThresholds,
-              // Guest's own data - memory > localStorage > host's hidden cards
-              opponentHand: hasMemoryData
-                ? currentState.opponentHand
-                : (savedState?.opponentHand ?? message.state.opponentHand),
-              opponentSiteDeck: hasMemoryData
-                ? currentState.opponentSiteDeck
-                : (savedState?.opponentSiteDeck ?? message.state.opponentSiteDeck),
-              opponentSpellDeck: hasMemoryData
-                ? currentState.opponentSpellDeck
-                : (savedState?.opponentSpellDeck ?? message.state.opponentSpellDeck),
-              opponentGraveyard: hasMemoryData
-                ? currentState.opponentGraveyard
-                : (savedState?.opponentGraveyard ?? message.state.opponentGraveyard),
-              opponentSpellStack: message.state.opponentSpellStack || [],
-              opponentLife: message.state.opponentLife,
-              opponentMana: message.state.opponentMana,
-              opponentManaTotal: message.state.opponentManaTotal,
-              opponentThresholds: message.state.opponentThresholds,
-              // Turn state from host
-              currentTurn: message.state.currentTurn,
-              turnNumber: message.state.turnNumber,
+            // Helper to apply merged state
+            const applyMergedState = (guestData: {
+              opponentHand?: CardInstance[];
+              opponentSiteDeck?: CardInstance[];
+              opponentSpellDeck?: CardInstance[];
+              opponentGraveyard?: CardInstance[];
+            } | null, source: string) => {
+              const mergedState: SerializedGameState = {
+                // Shared board state from host
+                board: message.state.board,
+                avatars: message.state.avatars,
+                vertices: message.state.vertices,
+                // Host's data (stored in player* slots)
+                playerHand: message.state.playerHand,
+                playerSiteDeck: message.state.playerSiteDeck,
+                playerSpellDeck: message.state.playerSpellDeck,
+                playerGraveyard: message.state.playerGraveyard,
+                playerSpellStack: message.state.playerSpellStack || [],
+                playerLife: message.state.playerLife,
+                playerMana: message.state.playerMana,
+                playerManaTotal: message.state.playerManaTotal,
+                playerThresholds: message.state.playerThresholds,
+                // Guest's own data from best available source
+                opponentHand: guestData?.opponentHand ?? message.state.opponentHand,
+                opponentSiteDeck: guestData?.opponentSiteDeck ?? message.state.opponentSiteDeck,
+                opponentSpellDeck: guestData?.opponentSpellDeck ?? message.state.opponentSpellDeck,
+                opponentGraveyard: guestData?.opponentGraveyard ?? message.state.opponentGraveyard,
+                opponentSpellStack: message.state.opponentSpellStack || [],
+                opponentLife: message.state.opponentLife,
+                opponentMana: message.state.opponentMana,
+                opponentManaTotal: message.state.opponentManaTotal,
+                opponentThresholds: message.state.opponentThresholds,
+                // Turn state from host
+                currentTurn: message.state.currentTurn,
+                turnNumber: message.state.turnNumber,
+              };
+              useGameStore.getState().applyFullState(mergedState);
+              peerService.send({ type: 'ack', sequence: message.sequence });
+              state.addLogEntry({
+                type: 'system',
+                player: null,
+                nickname: null,
+                message: source === 'memory' ? 'Game state synchronized' : `Game state restored from ${source}`,
+              });
             };
-            useGameStore.getState().applyFullState(mergedState);
-            peerService.send({ type: 'ack', sequence: message.sequence });
-            state.addLogEntry({
-              type: 'system',
-              player: null,
-              nickname: null,
-              message: savedState ? 'Game state restored' : 'Game state synchronized',
-            });
+
+            if (hasMemoryData) {
+              // Use memory data
+              applyMergedState({
+                opponentHand: currentState.opponentHand,
+                opponentSiteDeck: currentState.opponentSiteDeck,
+                opponentSpellDeck: currentState.opponentSpellDeck,
+                opponentGraveyard: currentState.opponentGraveyard,
+              }, 'memory');
+            } else {
+              // Try localStorage first
+              const localState = state.gameCode ? loadGuestState(state.gameCode) : null;
+              if (localState) {
+                applyMergedState(localState, 'local storage');
+              } else if (state.gameCode) {
+                // Try server as last resort before falling back to hidden cards
+                fetch(`/api/games/${encodeURIComponent(state.gameCode)}/guest-state`)
+                  .then(res => res.ok ? res.json() : null)
+                  .then(data => {
+                    if (data?.state) {
+                      applyMergedState(data.state, 'server');
+                    } else {
+                      applyMergedState(null, 'host');
+                    }
+                  })
+                  .catch(() => {
+                    applyMergedState(null, 'host');
+                  });
+              } else {
+                applyMergedState(null, 'host');
+              }
+            }
             break;
           }
 
@@ -1304,6 +1462,10 @@ export const useMultiplayerStore = create<MultiplayerState & MultiplayerActions>
       partialize: (state) => ({
         nickname: state.nickname,
         savedGames: state.savedGames,
+        // Persist session for reconnection
+        gameCode: state.gameCode,
+        isHost: state.isHost,
+        localPlayer: state.localPlayer,
       }),
     }
   )
@@ -1311,6 +1473,27 @@ export const useMultiplayerStore = create<MultiplayerState & MultiplayerActions>
 
 // Track subscription for guest state auto-save
 let guestStateSaveUnsubscribe: (() => void) | null = null;
+let guestServerSaveTimer: ReturnType<typeof setTimeout> | null = null;
+
+// Save guest's private state to server
+async function saveGuestStateToServer(gameCode: string): Promise<void> {
+  try {
+    const gameState = useGameStore.getState();
+    const guestPrivateState = {
+      opponentHand: gameState.opponentHand,
+      opponentSiteDeck: gameState.opponentSiteDeck,
+      opponentSpellDeck: gameState.opponentSpellDeck,
+      opponentGraveyard: gameState.opponentGraveyard,
+    };
+    await fetch(`/api/games/${encodeURIComponent(gameCode)}/guest-state`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ state: guestPrivateState }),
+    });
+  } catch (error) {
+    console.error('Failed to save guest state to server:', error);
+  }
+}
 
 // Set up auto-save for guest's private state
 function setupGuestStateAutoSave(gameCode: string): void {
@@ -1318,6 +1501,19 @@ function setupGuestStateAutoSave(gameCode: string): void {
   if (guestStateSaveUnsubscribe) {
     guestStateSaveUnsubscribe();
   }
+  if (guestServerSaveTimer) {
+    clearTimeout(guestServerSaveTimer);
+  }
+
+  // Debounced server save
+  const debouncedServerSave = () => {
+    if (guestServerSaveTimer) {
+      clearTimeout(guestServerSaveTimer);
+    }
+    guestServerSaveTimer = setTimeout(() => {
+      saveGuestStateToServer(gameCode);
+    }, 5000);
+  };
 
   // Subscribe to game store changes and save guest's private data
   guestStateSaveUnsubscribe = useGameStore.subscribe((state, prevState) => {
@@ -1328,7 +1524,10 @@ function setupGuestStateAutoSave(gameCode: string): void {
       state.opponentSpellDeck !== prevState.opponentSpellDeck ||
       state.opponentGraveyard !== prevState.opponentGraveyard
     ) {
+      // Save to localStorage (immediate)
       saveGuestState(gameCode, state);
+      // Save to server (debounced)
+      debouncedServerSave();
     }
   });
 }
@@ -1338,6 +1537,10 @@ function cleanupGuestStateAutoSave(): void {
   if (guestStateSaveUnsubscribe) {
     guestStateSaveUnsubscribe();
     guestStateSaveUnsubscribe = null;
+  }
+  if (guestServerSaveTimer) {
+    clearTimeout(guestServerSaveTimer);
+    guestServerSaveTimer = null;
   }
   clearGuestState();
 }

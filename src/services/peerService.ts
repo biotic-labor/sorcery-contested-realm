@@ -49,10 +49,16 @@ class PeerService {
 
   // Create a new game as host
   createGame(): Promise<string> {
+    const code = generateGameCode();
+    return this.createGameWithCode(code);
+  }
+
+  // Create/reconnect to a game with a specific code
+  createGameWithCode(code: string): Promise<string> {
     return new Promise((resolve, reject) => {
       this.cleanup();
       this.isHost = true;
-      this.gameCode = generateGameCode();
+      this.gameCode = code;
 
       try {
         this.peer = new Peer(this.gameCode);
@@ -76,7 +82,12 @@ class PeerService {
         });
 
         this.peer.on('error', (err) => {
-          const error = new Error(err.message || 'Peer connection error');
+          let errorMessage = err.message || 'Peer connection error';
+          // Handle case where peer ID is already taken
+          if (err.type === 'unavailable-id') {
+            errorMessage = 'Game code is temporarily unavailable. Try again in a moment.';
+          }
+          const error = new Error(errorMessage);
           this.events.onError?.(error);
           reject(error);
         });
@@ -129,7 +140,7 @@ class PeerService {
 
           // Handle specific error types
           if (err.type === 'peer-unavailable') {
-            errorMessage = 'Game not found. Check the code and try again.';
+            errorMessage = 'Host not available. They may need to reconnect first.';
           }
 
           const error = new Error(errorMessage);

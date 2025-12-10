@@ -265,13 +265,14 @@ Shows a semi-transparent card where the opponent is dragging. Receives position 
 **Card ID Generation** (`src/utils/cardTransform.ts`):
 Card IDs are prefixed with owner: `${owner}-card-${counter}` (e.g., `player-card-1001`). This prevents ID collisions when both players import decks, ensuring each player can only drag their own cards.
 
-### Known Issue: Hand Sync with Hidden Cards
+### Guest Reconnection State Recovery
 
-**Problem:** Opponent's hand shows hidden placeholder cards with IDs like `hidden-player-site-0-timestamp`, but when cards are played, `removeFromHand` broadcasts the real card ID (e.g., `player-card-1001`). The opponent's client can't find that ID in their representation of the hand.
+Guest's private state (hand, decks, graveyard) is preserved across reconnects via:
+1. Memory (if tab wasn't refreshed)
+2. localStorage (immediate saves)
+3. Server storage (`/api/games/:code/guest-state`) - most reliable
 
-**Impact:** Opponent's hand count doesn't update when cards are played from hand.
-
-**Potential Fix:** For remote `removeFromHand` actions, if the card ID isn't found, remove the first hidden card from the hand instead. Or: broadcast an index instead of card ID for hand operations.
+On `full_sync` from host, guest merges their private data from the best available source. Server-side storage ensures state survives browser refresh.
 
 ## Deck Import
 

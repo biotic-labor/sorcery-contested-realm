@@ -35,6 +35,9 @@ if (!columnNames.includes('host_nickname')) {
 if (!columnNames.includes('created_at')) {
   db.exec('ALTER TABLE games ADD COLUMN created_at INTEGER');
 }
+if (!columnNames.includes('guest_state')) {
+  db.exec('ALTER TABLE games ADD COLUMN guest_state TEXT');
+}
 
 // Types
 interface GameRow {
@@ -42,6 +45,7 @@ interface GameRow {
   host_peer_id: string | null;
   guest_peer_id: string | null;
   state: string | null;
+  guest_state: string | null;
   updated_at: number;
   is_public: number;
   host_nickname: string | null;
@@ -86,6 +90,17 @@ export function saveGameState(gameCode: string, state: object): void {
 export function getGameState(gameCode: string): object | null {
   const row = db.prepare('SELECT state FROM games WHERE game_code = ?').get(gameCode) as { state: string | null } | undefined;
   return row?.state ? JSON.parse(row.state) : null;
+}
+
+// Guest state management (guest's private cards)
+export function saveGuestState(gameCode: string, state: object): void {
+  db.prepare('UPDATE games SET guest_state = ?, updated_at = ? WHERE game_code = ?')
+    .run(JSON.stringify(state), Date.now(), gameCode);
+}
+
+export function getGuestState(gameCode: string): object | null {
+  const row = db.prepare('SELECT guest_state FROM games WHERE game_code = ?').get(gameCode) as { guest_state: string | null } | undefined;
+  return row?.guest_state ? JSON.parse(row.guest_state) : null;
 }
 
 export function deleteGame(gameCode: string): void {

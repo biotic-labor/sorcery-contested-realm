@@ -6,6 +6,8 @@ import {
   getGame,
   saveGameState,
   getGameState,
+  saveGuestState,
+  getGuestState,
   deleteGame,
   registerPublicGame,
   getPublicGames,
@@ -133,6 +135,38 @@ router.get('/games/:gameCode/state', (req: Request, res: Response) => {
     res.json({ state });
   } else {
     res.status(404).json({ error: 'No saved state' });
+  }
+});
+
+// Save guest's private state (hand, decks, graveyard)
+router.post('/games/:gameCode/guest-state', (req: Request, res: Response) => {
+  const { gameCode } = req.params;
+  const { state } = req.body;
+
+  if (!state) {
+    res.status(400).json({ error: 'state required' });
+    return;
+  }
+
+  const game = getGame(gameCode);
+  if (!game) {
+    res.status(404).json({ error: 'Game not found' });
+    return;
+  }
+
+  saveGuestState(gameCode, state);
+  res.json({ success: true });
+});
+
+// Get guest's private state (for reconnection)
+router.get('/games/:gameCode/guest-state', (req: Request, res: Response) => {
+  const { gameCode } = req.params;
+  const state = getGuestState(gameCode);
+
+  if (state) {
+    res.json({ state });
+  } else {
+    res.status(404).json({ error: 'No saved guest state' });
   }
 });
 

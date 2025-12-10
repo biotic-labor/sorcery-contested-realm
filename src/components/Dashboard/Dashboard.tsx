@@ -14,11 +14,15 @@ export function Dashboard({ onGameStart }: DashboardProps) {
     connectionStatus,
     connectionError,
     gameCode,
+    isHost,
     isPublicGame,
     createGame,
     createPublicGame,
     cancelPublicGame,
     joinGame,
+    reconnectAsHost,
+    reconnectAsGuest,
+    clearSession,
     disconnect,
   } = useMultiplayerStore();
 
@@ -75,6 +79,26 @@ export function Dashboard({ onGameStart }: DashboardProps) {
   const handleCancelPublicGame = async () => {
     await cancelPublicGame();
   };
+
+  const handleReconnect = async () => {
+    try {
+      if (isHost) {
+        await reconnectAsHost();
+      } else {
+        await reconnectAsGuest();
+        onGameStart();
+      }
+    } catch (error) {
+      // Error handled in store
+    }
+  };
+
+  const handleAbandonSession = () => {
+    clearSession();
+  };
+
+  // Check if there's an existing session to reconnect to
+  const hasExistingSession = connectionStatus === 'disconnected' && gameCode;
 
   const getStatusMessage = (status: ConnectionStatus): string => {
     switch (status) {
@@ -213,6 +237,38 @@ export function Dashboard({ onGameStart }: DashboardProps) {
               {/* Create/Join UI */}
               {connectionStatus === 'disconnected' && (
                 <>
+                  {/* Reconnect to existing session */}
+                  {hasExistingSession && (
+                    <div className="bg-yellow-900/30 rounded-lg p-4 border border-yellow-700">
+                      <h3 className="font-medium mb-2 text-yellow-400">Game In Progress</h3>
+                      <p className="text-sm text-gray-300 mb-1">
+                        You have an existing game session ({isHost ? 'host' : 'guest'})
+                      </p>
+                      {!isHost && (
+                        <p className="text-xs text-gray-400 mb-2">
+                          Host must reconnect first before you can rejoin
+                        </p>
+                      )}
+                      <div className="text-2xl font-mono font-bold tracking-widest text-yellow-400 mb-4 text-center">
+                        {gameCode}
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={handleReconnect}
+                          className="flex-1 px-4 py-2 bg-yellow-600 hover:bg-yellow-700 rounded-md font-medium transition-colors"
+                        >
+                          Reconnect
+                        </button>
+                        <button
+                          onClick={handleAbandonSession}
+                          className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-md transition-colors"
+                        >
+                          Abandon
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Create Game Options */}
                   <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
                     <h3 className="font-medium mb-3">Create Game</h3>
