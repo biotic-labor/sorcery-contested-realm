@@ -6,7 +6,6 @@ interface CardProps {
   onClick?: () => void;
   onMouseEnter?: () => void;
   onMouseLeave?: () => void;
-  isSelected?: boolean;
   isHovered?: boolean;
   size?: 'xsmall' | 'small' | 'medium' | 'large';
   showAsHorizontal?: boolean;
@@ -42,7 +41,6 @@ export function Card({
   onClick,
   onMouseEnter,
   onMouseLeave,
-  isSelected = false,
   isHovered = false,
   size = 'medium',
   showAsHorizontal = false,
@@ -58,11 +56,17 @@ export function Card({
   // Sites are rotated 90 degrees to display horizontally
   // Use horizontal container for sites, portrait for others
   const displayHorizontal = showAsHorizontal || isSite;
-  const cardSize = displayHorizontal ? horizontalSizes[size] : sizes[size];
+  const baseSize = displayHorizontal ? horizontalSizes[size] : sizes[size];
+  // When tapped, swap width/height so the hitbox matches the rotated visual
+  const cardSize = isTapped
+    ? { width: baseSize.height, height: baseSize.width }
+    : baseSize;
   const bgColor = typeColors[cardType] || '#6b7280';
 
   // Sites need their image rotated 90 degrees within the horizontal container
   const imageRotation = isSite ? 'rotate(90deg)' : undefined;
+  // The inner content size is always the base (non-tapped) size
+  const contentSize = baseSize;
 
   // Determine the card back type based on card type
   const cardBackType: 'site' | 'spell' = isSite ? 'site' : 'spell';
@@ -71,7 +75,6 @@ export function Card({
     <div
       className={`
         relative cursor-pointer transition-all duration-200
-        ${isSelected ? 'ring-2 ring-yellow-400 ring-offset-2 ring-offset-gray-900' : ''}
         ${isHovered ? 'scale-105 z-10' : ''}
         ${isTapped ? 'opacity-60' : ''}
       `}
@@ -85,15 +88,17 @@ export function Card({
         perspective: '1000px',
       }}
     >
-      {/* Card flip container */}
+      {/* Card flip container - uses original size, centered in rotated container */}
       <div
         style={{
-          width: '100%',
-          height: '100%',
-          position: 'relative',
+          width: contentSize.width,
+          height: contentSize.height,
+          position: 'absolute',
+          top: '50%',
+          left: '50%',
+          transform: `translate(-50%, -50%) ${isFaceDown ? 'rotateY(180deg)' : 'rotateY(0deg)'}`,
           transformStyle: 'preserve-3d',
           transition: 'transform 0.4s ease-in-out',
-          transform: isFaceDown ? 'rotateY(180deg)' : 'rotateY(0deg)',
         }}
       >
         {/* Front face (card image) */}
@@ -112,16 +117,16 @@ export function Card({
               alt={card.cardData.name}
               className="rounded-lg shadow-lg"
               style={{
-                width: isSite ? cardSize.height : '100%',
-                height: isSite ? cardSize.width : '100%',
+                width: isSite ? contentSize.height : '100%',
+                height: isSite ? contentSize.width : '100%',
                 objectFit: 'cover',
                 transform: imageRotation,
                 transformOrigin: 'center center',
                 position: isSite ? 'absolute' : undefined,
                 top: isSite ? '50%' : undefined,
                 left: isSite ? '50%' : undefined,
-                marginTop: isSite ? -(cardSize.width / 2) : undefined,
-                marginLeft: isSite ? -(cardSize.height / 2) : undefined,
+                marginTop: isSite ? -(contentSize.width / 2) : undefined,
+                marginLeft: isSite ? -(contentSize.height / 2) : undefined,
               }}
               onError={() => setImageError(true)}
             />
@@ -167,14 +172,6 @@ export function Card({
           />
         </div>
       </div>
-
-      {isTapped && (
-        <div className="absolute inset-0 bg-black bg-opacity-30 rounded-lg flex items-center justify-center">
-          <span className="text-white text-xs font-bold bg-black bg-opacity-50 px-2 py-1 rounded">
-            TAPPED
-          </span>
-        </div>
-      )}
 
       {isHovered && (
         <div className="absolute -bottom-8 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white text-xs px-2 py-1 rounded whitespace-nowrap z-20">

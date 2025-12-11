@@ -26,9 +26,7 @@ export function Hand({ player, size = 'medium' }: HandProps) {
   const {
     playerHand,
     opponentHand,
-    selectedCard,
     hoveredCard,
-    selectCard,
     hoverCard,
   } = useGameStore();
 
@@ -67,8 +65,8 @@ export function Hand({ player, size = 'medium' }: HandProps) {
   const isLocalPlayersHand = !isMultiplayer || player === 'player';
   const showAsCardBacks = isMultiplayer && !isLocalPlayersHand;
 
-  const handleCardClick = (card: CardInstance) => {
-    selectCard(selectedCard?.id === card.id ? null : card);
+  const handleCardClick = (_card: CardInstance) => {
+    // Click handler removed - no selection behavior
   };
 
   const handleContextMenu = (e: React.MouseEvent) => {
@@ -144,7 +142,6 @@ export function Hand({ player, size = 'medium' }: HandProps) {
                   index={index}
                   player={player}
                   size={size}
-                  isSelected={selectedCard?.id === card.id}
                   isHovered={hoveredCard?.id === card.id}
                   onClick={() => handleCardClick(card)}
                   onHover={hoverCard}

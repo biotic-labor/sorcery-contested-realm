@@ -6,7 +6,6 @@ interface DraggableCardProps {
   card: CardInstance;
   onClick?: () => void;
   onHover?: (card: CardInstance | null) => void;
-  isSelected?: boolean;
   isHovered?: boolean;
 }
 
@@ -14,7 +13,6 @@ export function DraggableCard({
   card,
   onClick,
   onHover,
-  isSelected,
   isHovered,
 }: DraggableCardProps) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
@@ -43,7 +41,6 @@ export function DraggableCard({
       <Card
         card={card}
         size="medium"
-        isSelected={isSelected}
         isHovered={isHovered}
         onClick={onClick}
         onMouseEnter={() => onHover?.(card)}

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useMultiplayerStore } from '../../hooks/useMultiplayer';
 import { ConnectionStatus } from '../../types/multiplayer';
 import { PublicGamesList } from './PublicGamesList';
+import { ActiveGamesList } from './ActiveGamesList';
 
 interface DashboardProps {
   onGameStart: () => void;
@@ -295,6 +296,12 @@ export function Dashboard({ onGameStart }: DashboardProps) {
                   <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
                     <h3 className="font-medium mb-3">Available Games</h3>
                     <PublicGamesList onJoinGame={handleJoinPublicGame} />
+                  </div>
+
+                  {/* Active Games */}
+                  <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
+                    <h3 className="font-medium mb-3">Active Games</h3>
+                    <ActiveGamesList />
                   </div>
 
                   {/* Join with Code */}

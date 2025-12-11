@@ -12,6 +12,9 @@ import {
   registerPublicGame,
   getPublicGames,
   removePublicGame,
+  getActiveGames,
+  setGuestNickname,
+  updateGameStatus,
 } from '../db.js';
 
 const router = Router();
@@ -31,24 +34,39 @@ router.get('/games/public', (_req: Request, res: Response) => {
   });
 });
 
+// Active games: List in-progress games (for spectator view)
+router.get('/games/active', (_req: Request, res: Response) => {
+  const games = getActiveGames();
+  const now = Date.now();
+
+  res.json({
+    games: games.map((game) => ({
+      gameCode: game.game_code,
+      hostNickname: game.host_nickname,
+      guestNickname: game.guest_nickname,
+      playTimeSeconds: game.created_at ? Math.floor((now - game.created_at) / 1000) : 0,
+    })),
+  });
+});
+
 // Register new game (host calls on create)
 router.post('/games/:gameCode/register', (req: Request, res: Response) => {
   const { gameCode } = req.params;
-  const { peerId } = req.body;
+  const { peerId, nickname } = req.body;
 
   if (!peerId) {
     res.status(400).json({ error: 'peerId required' });
     return;
   }
 
-  registerGame(gameCode, peerId);
+  registerGame(gameCode, peerId, nickname || null);
   res.json({ success: true });
 });
 
 // Guest joins
 router.post('/games/:gameCode/join', (req: Request, res: Response) => {
   const { gameCode } = req.params;
-  const { peerId } = req.body;
+  const { peerId, nickname } = req.body;
 
   if (!peerId) {
     res.status(400).json({ error: 'peerId required' });
@@ -62,6 +80,9 @@ router.post('/games/:gameCode/join', (req: Request, res: Response) => {
   }
 
   registerGuest(gameCode, peerId);
+  if (nickname) {
+    setGuestNickname(gameCode, nickname);
+  }
   res.json({ success: true, hostPeerId: game.host_peer_id });
 });
 
@@ -195,6 +216,26 @@ router.post('/games/:gameCode/register-public', (req: Request, res: Response) =>
 router.delete('/games/:gameCode/public', (req: Request, res: Response) => {
   const { gameCode } = req.params;
   removePublicGame(gameCode);
+  res.json({ success: true });
+});
+
+// Update game status (called when game starts/ends)
+router.post('/games/:gameCode/status', (req: Request, res: Response) => {
+  const { gameCode } = req.params;
+  const { status } = req.body;
+
+  if (!status || !['waiting', 'playing', 'finished'].includes(status)) {
+    res.status(400).json({ error: 'status must be waiting, playing, or finished' });
+    return;
+  }
+
+  const game = getGame(gameCode);
+  if (!game) {
+    res.status(404).json({ error: 'Game not found' });
+    return;
+  }
+
+  updateGameStatus(gameCode, status);
   res.json({ success: true });
 });
 

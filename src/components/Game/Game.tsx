@@ -6,6 +6,8 @@ import { GameControls } from '../GameControls';
 import { CardPreview } from '../CardPreview';
 import { PlayerStats } from '../PlayerStats';
 import { DeckZone } from '../DeckZone';
+import { CollectionZone } from '../CollectionZone';
+import { TokenZone } from '../TokenZone';
 import { DiscardPile } from '../DiscardPile';
 import { DeckImportButton } from '../DeckImport';
 import { GameLog } from '../GameLog';
@@ -28,16 +30,23 @@ interface GameProps {
 export function Game({ onLeave }: GameProps) {
   const [activeCard, setActiveCard] = useState<CardInstance | null>(null);
   const [bottomAddTimestamps, setBottomAddTimestamps] = useState<Record<string, number>>({});
+  const [shiftHeld, setShiftHeld] = useState(false);
   const initialized = useRef(false);
   const shiftHeldRef = useRef(false);
 
-  // Track shift key state for deck drop behavior
+  // Track shift key state for deck drop behavior and drag overlay size
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Shift') shiftHeldRef.current = true;
+      if (e.key === 'Shift') {
+        shiftHeldRef.current = true;
+        setShiftHeld(true);
+      }
     };
     const handleKeyUp = (e: KeyboardEvent) => {
-      if (e.key === 'Shift') shiftHeldRef.current = false;
+      if (e.key === 'Shift') {
+        shiftHeldRef.current = false;
+        setShiftHeld(false);
+      }
     };
     window.addEventListener('keydown', handleKeyDown);
     window.addEventListener('keyup', handleKeyUp);
@@ -50,12 +59,15 @@ export function Game({ onLeave }: GameProps) {
   // Get state from game store (read-only)
   const {
     hoveredCard,
+    board,
     playerSiteDeck,
     playerSpellDeck,
     opponentSiteDeck,
     opponentSpellDeck,
     playerGraveyard,
     opponentGraveyard,
+    playerCollection,
+    opponentCollection,
   } = useGameStore();
 
   // Get actions from useGameActions (broadcasts in multiplayer)
@@ -70,14 +82,16 @@ export function Game({ onLeave }: GameProps) {
     putCardOnBottom,
     addToGraveyard,
     removeFromGraveyard,
+    addToCollection,
     addToSpellStack,
     removeFromSpellStack,
     removeCardFromBoard,
     placeAvatar,
-    moveAvatar,
     placeUnitOnVertex,
     removeCardFromVertex,
     removeCardFromDeckById,
+    attachToken,
+    removeFromAttachments,
   } = useGameActions();
 
   const {
@@ -125,6 +139,7 @@ export function Game({ onLeave }: GameProps) {
   const mySiteDeck = isGuest ? opponentSiteDeck : playerSiteDeck;
   const mySpellDeck = isGuest ? opponentSpellDeck : playerSpellDeck;
   const myGraveyard = isGuest ? opponentGraveyard : playerGraveyard;
+  const myCollection = isGuest ? opponentCollection : playerCollection;
 
   // "Their" data (shown at top of screen)
   const theirSiteDeck = isGuest ? playerSiteDeck : opponentSiteDeck;
@@ -229,8 +244,12 @@ export function Game({ onLeave }: GameProps) {
     const activePlayer = active.data.current?.player as Player | undefined;
     const sourcePlayer = active.data.current?.sourcePlayer as Player | undefined;
     const sourceDeckType = active.data.current?.deckType as DeckType | undefined;
+    const hostCardId = active.data.current?.hostCardId as string | undefined;
 
     if (!card) return;
+
+    // Reset rotation when detaching from a host card (untap the token)
+    const cardToUse = source === 'attachment' ? { ...card, rotation: 0 } : card;
 
     // Check if dropping on another card in hand (reordering)
     const overData = over.data.current;
@@ -258,13 +277,13 @@ export function Game({ onLeave }: GameProps) {
       const uiPlayer = parts[1] as Player;
 
       if (shiftHeldRef.current) {
-        putCardOnBottom(card, deckPlayer, deckType);
+        putCardOnBottom(cardToUse, deckPlayer, deckType);
         setBottomAddTimestamps(prev => ({
           ...prev,
           [`${uiPlayer}-${deckType}`]: Date.now(),
         }));
       } else {
-        putCardOnTop(card, deckPlayer, deckType);
+        putCardOnTop(cardToUse, deckPlayer, deckType);
       }
 
       if (source === 'hand') {
@@ -282,6 +301,8 @@ export function Game({ onLeave }: GameProps) {
         removeFromSpellStack(card.id, sourcePlayer);
       } else if (source === 'deck' && activePlayer && sourceDeckType) {
         removeCardFromDeckById(card.id, activePlayer, sourceDeckType);
+      } else if (source === 'attachment' && hostCardId) {
+        removeFromAttachments(card.id, hostCardId);
       }
       return;
     }
@@ -290,7 +311,7 @@ export function Game({ onLeave }: GameProps) {
     if (overId.startsWith('discard-')) {
       const discardPlayer = mapUiPlayerToData(overId.split('-')[1] as Player);
 
-      addToGraveyard(card, discardPlayer);
+      addToGraveyard(cardToUse, discardPlayer);
 
       if (source === 'hand') {
         removeFromHand(card.id, card.owner);
@@ -307,6 +328,35 @@ export function Game({ onLeave }: GameProps) {
         removeFromSpellStack(card.id, sourcePlayer);
       } else if (source === 'deck' && activePlayer && sourceDeckType) {
         removeCardFromDeckById(card.id, activePlayer, sourceDeckType);
+      } else if (source === 'attachment' && hostCardId) {
+        removeFromAttachments(card.id, hostCardId);
+      }
+      return;
+    }
+
+    // Check if dropping on a collection
+    if (overId.startsWith('collection-')) {
+      const collectionPlayer = mapUiPlayerToData(overId.split('-')[1] as Player);
+
+      addToCollection(cardToUse, collectionPlayer);
+
+      if (source === 'hand') {
+        removeFromHand(card.id, card.owner);
+      } else if (source === 'board' && sourcePosition) {
+        if (sourcePosition.startsWith('v-')) {
+          removeCardFromVertex(card.id, sourcePosition);
+        } else {
+          const fromPosition = parsePositionKey(sourcePosition);
+          removeCardFromBoard(card.id, fromPosition);
+        }
+      } else if (source === 'graveyard' && sourcePlayer) {
+        removeFromGraveyard(card.id, sourcePlayer);
+      } else if (source === 'spell-stack' && sourcePlayer) {
+        removeFromSpellStack(card.id, sourcePlayer);
+      } else if (source === 'deck' && activePlayer && sourceDeckType) {
+        removeCardFromDeckById(card.id, activePlayer, sourceDeckType);
+      } else if (source === 'attachment' && hostCardId) {
+        removeFromAttachments(card.id, hostCardId);
       }
       return;
     }
@@ -316,7 +366,7 @@ export function Game({ onLeave }: GameProps) {
       const handPlayer = mapUiPlayerToData(overId.split('-')[1] as Player);
 
       // Card goes to hand face-up (normal draw behavior)
-      addToHand(card, handPlayer);
+      addToHand(cardToUse, handPlayer);
 
       if (source === 'board' && sourcePosition) {
         if (sourcePosition.startsWith('v-')) {
@@ -331,6 +381,8 @@ export function Game({ onLeave }: GameProps) {
         removeFromSpellStack(card.id, sourcePlayer);
       } else if (source === 'deck' && activePlayer && sourceDeckType) {
         removeCardFromDeckById(card.id, activePlayer, sourceDeckType);
+      } else if (source === 'attachment' && hostCardId) {
+        removeFromAttachments(card.id, hostCardId);
       }
       return;
     }
@@ -353,7 +405,7 @@ export function Game({ onLeave }: GameProps) {
       const stackPlayer = mapUiPlayerToData(uiStackPlayer);
 
       // Cards from deck are placed face-down
-      const cardToPlace = source === 'deck' ? { ...card, faceDown: true } : card;
+      const cardToPlace = source === 'deck' ? { ...cardToUse, faceDown: true } : cardToUse;
       addToSpellStack(cardToPlace, stackPlayer);
 
       if (source === 'hand') {
@@ -371,6 +423,8 @@ export function Game({ onLeave }: GameProps) {
         removeFromSpellStack(card.id, sourcePlayer);
       } else if (source === 'deck' && activePlayer && sourceDeckType) {
         removeCardFromDeckById(card.id, activePlayer, sourceDeckType);
+      } else if (source === 'attachment' && hostCardId) {
+        removeFromAttachments(card.id, hostCardId);
       }
       return;
     }
@@ -385,7 +439,7 @@ export function Game({ onLeave }: GameProps) {
       const vertexId = overId as string;
 
       // Cards from deck are placed face-down
-      const cardToPlace = source === 'deck' ? { ...card, faceDown: true } : card;
+      const cardToPlace = source === 'deck' ? { ...cardToUse, faceDown: true } : cardToUse;
       placeUnitOnVertex(cardToPlace, vertexId);
 
       if (source === 'hand') {
@@ -403,6 +457,8 @@ export function Game({ onLeave }: GameProps) {
         removeFromSpellStack(card.id, sourcePlayer);
       } else if (source === 'deck' && activePlayer && sourceDeckType) {
         removeCardFromDeckById(card.id, activePlayer, sourceDeckType);
+      } else if (source === 'attachment' && hostCardId) {
+        removeFromAttachments(card.id, hostCardId);
       }
       return;
     }
@@ -411,6 +467,34 @@ export function Game({ onLeave }: GameProps) {
     if (!overId.includes('-')) return;
 
     const targetPosition = parsePositionKey(overId);
+
+    // Check if dropping an attachable card on a unit (Shift+drop to attach)
+    // This runs before same-position check so you can equip within same site
+    if (card.isAttachable && shiftHeldRef.current) {
+      const site = board[targetPosition.row][targetPosition.col];
+
+      // Find a target card to attach to (top unit or site card, but not self)
+      let targetCard: CardInstance | null = null;
+      if (site.units.length > 0) {
+        // Find top unit that isn't the card being dragged
+        for (let i = site.units.length - 1; i >= 0; i--) {
+          if (site.units[i].id !== card.id) {
+            targetCard = site.units[i];
+            break;
+          }
+        }
+      }
+      if (!targetCard && site.siteCard && site.siteCard.id !== card.id) {
+        targetCard = site.siteCard;
+      }
+
+      if (targetCard) {
+        attachToken(card.id, targetCard.id);
+        // No need to remove from source - attachToken handles that
+        return;
+      }
+      // No target card found on this site - fall through to place as unit
+    }
 
     if (source === 'board' && sourcePosition === over.id) {
       return;
@@ -422,11 +506,8 @@ export function Game({ onLeave }: GameProps) {
         removeCardFromVertex(card.id, sourcePosition);
       } else {
         const fromPosition = parsePositionKey(sourcePosition);
-        if (card.cardData.guardian.type === 'Avatar') {
-          moveAvatar(card.id, fromPosition, targetPosition);
-        } else {
-          moveCard(card.id, fromPosition, targetPosition);
-        }
+        // Both regular units and avatars now use moveCard
+        moveCard(card.id, fromPosition, targetPosition);
       }
     } else if (source === 'hand') {
       if (card.cardData.guardian.type === 'Site') {
@@ -458,6 +539,10 @@ export function Game({ onLeave }: GameProps) {
         placeUnitOnSite(cardToPlace, targetPosition);
       }
       removeCardFromDeckById(card.id, activePlayer, sourceDeckType);
+    } else if (source === 'attachment' && hostCardId) {
+      // Dragging attachment to board - place as unit (untapped)
+      placeUnitOnSite(cardToUse, targetPosition);
+      removeFromAttachments(card.id, hostCardId);
     }
   };
 
@@ -499,17 +584,21 @@ export function Game({ onLeave }: GameProps) {
               </span>
             )}
             <div className="text-sm text-gray-400">
-              <kbd className="px-2 py-1 bg-gray-700 rounded">E</kbd> tap/untap
-              <span className="mx-2">|</span>
-              <kbd className="px-2 py-1 bg-gray-700 rounded">U</kbd> under/over
+              <kbd className="px-2 py-1 bg-gray-700 rounded">E</kbd> tap
               <span className="mx-2">|</span>
               <kbd className="px-2 py-1 bg-gray-700 rounded">F</kbd> flip
+              <span className="mx-2">|</span>
+              <kbd className="px-2 py-1 bg-gray-700 rounded">U</kbd> under
+              <span className="mx-2">|</span>
+              <kbd className="px-2 py-1 bg-gray-700 rounded">T</kbd> top
+              <span className="mx-2">|</span>
+              <kbd className="px-2 py-1 bg-gray-700 rounded">Del</kbd> delete
               <span className="mx-2">|</span>
               <kbd className="px-2 py-1 bg-gray-700 rounded">R</kbd> shuffle
               <span className="mx-2">|</span>
               <kbd className="px-2 py-1 bg-gray-700 rounded">W</kbd> ping
               <span className="mx-2">|</span>
-              <kbd className="px-2 py-1 bg-gray-700 rounded">Shift</kbd> bottom of deck
+              <kbd className="px-2 py-1 bg-gray-700 rounded">Shift</kbd>+drop bottom/equip
             </div>
           </div>
         </header>
@@ -541,6 +630,7 @@ export function Game({ onLeave }: GameProps) {
               <DeckZone player="player" deckType="site" cards={mySiteDeck} bottomAddTimestamp={bottomAddTimestamps['player-site']} />
               <DeckZone player="player" deckType="spell" cards={mySpellDeck} bottomAddTimestamp={bottomAddTimestamps['player-spell']} />
               <DiscardPile player="player" cards={myGraveyard} />
+              {myCollection.length > 0 && <CollectionZone player="player" cards={myCollection} />}
               <DeckImportButton player="player" />
             </div>
           </div>
@@ -560,7 +650,10 @@ export function Game({ onLeave }: GameProps) {
               <SpellStack player="opponent" />
               <SpellStack player="player" />
             </div>
-            <PlayerStats />
+            <div className="flex flex-col gap-3">
+              <PlayerStats />
+              <TokenZone player="player" />
+            </div>
           </div>
         </main>
 
@@ -568,12 +661,12 @@ export function Game({ onLeave }: GameProps) {
         <GameLog />
       </div>
 
-      {/* Drag overlay - shows card being dragged */}
-      <DragOverlay modifiers={[rotatedBoardModifier]}>
+      {/* Drag overlay - shows card being dragged (smaller when Shift held) */}
+      <DragOverlay modifiers={[rotatedBoardModifier]} dropAnimation={null}>
         {draggingFromDeckType.current ? (
-          <CardBack size="medium" deckType={draggingFromDeckType.current} />
+          <CardBack size={shiftHeld ? 'small' : 'medium'} deckType={draggingFromDeckType.current} />
         ) : activeCard ? (
-          <Card card={activeCard} size="medium" />
+          <Card card={activeCard} size={shiftHeld ? 'small' : 'medium'} />
         ) : null}
       </DragOverlay>
 

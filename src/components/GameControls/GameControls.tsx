@@ -28,21 +28,8 @@ export function GameControls() {
   };
 
   return (
-    <div className="flex items-center justify-between p-4 bg-gray-800 rounded-lg border border-gray-600">
+    <div className="flex items-center justify-center p-4 bg-gray-800 rounded-lg border border-gray-600">
       <div className="flex items-center gap-4">
-        <div className="text-sm">
-          <span className="text-gray-400">Turn:</span>{' '}
-          <span className="text-white font-bold">{turnNumber}</span>
-        </div>
-        <div className="text-sm">
-          <span className="text-gray-400">Current Player:</span>{' '}
-          <span className={`font-bold ${isMyTurn ? 'text-green-400' : 'text-red-400'}`}>
-            {isMyTurn ? 'You' : 'Opponent'}
-          </span>
-        </div>
-      </div>
-
-      <div className="flex gap-2">
         <button
           onClick={handleStartTurn}
           disabled={isMultiplayer && !isMyTurn}
@@ -54,6 +41,15 @@ export function GameControls() {
         >
           Start Turn
         </button>
+        <div className="text-sm">
+          <span className="text-gray-400">Turn:</span>{' '}
+          <span className="text-white font-bold">{turnNumber}</span>
+        </div>
+        <div className="text-sm">
+          <span className={`font-bold ${isMyTurn ? 'text-green-400' : 'text-red-400'}`}>
+            {isMyTurn ? 'Your Turn' : "Opponent's Turn"}
+          </span>
+        </div>
         <button
           onClick={endTurn}
           disabled={isMultiplayer && !isMyTurn}

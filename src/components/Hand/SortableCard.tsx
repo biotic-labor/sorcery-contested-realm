@@ -10,7 +10,6 @@ interface SortableCardProps {
   size?: 'xsmall' | 'small' | 'medium';
   onClick?: () => void;
   onHover?: (card: CardInstance | null) => void;
-  isSelected?: boolean;
   isHovered?: boolean;
 }
 
@@ -21,7 +20,6 @@ export function SortableCard({
   size = 'medium',
   onClick,
   onHover,
-  isSelected,
   isHovered,
 }: SortableCardProps) {
   const {
@@ -55,7 +53,6 @@ export function SortableCard({
       <Card
         card={card}
         size={size}
-        isSelected={isSelected}
         isHovered={isHovered}
         onClick={onClick}
         onMouseEnter={() => onHover?.(card)}

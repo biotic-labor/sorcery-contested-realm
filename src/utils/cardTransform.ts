@@ -13,7 +13,18 @@ import type {
 
 let cardIdCounter = 1000; // Start at 1000 to avoid collision with existing mock cards
 
-function generateCardId(owner: 'player' | 'opponent'): string {
+// Equipment subtypes that should be attachable to units
+const EQUIPMENT_SUBTYPES = [
+  'weapon',
+  'armor',
+  'relic',
+  'document',
+  'instrument',
+  'potion',
+  'device',
+];
+
+export function generateCardId(owner: 'player' | 'opponent'): string {
   return `${owner}-card-${++cardIdCounter}`;
 }
 
@@ -70,6 +81,10 @@ function transformCuriosaEntry(
     typeText: variant.typeText || '',
   };
 
+  // Check if card is equipment based on typeText (e.g., "Exceptional Artifact Weapon")
+  const typeTextLower = (variant.typeText || '').toLowerCase();
+  const isEquipment = EQUIPMENT_SUBTYPES.some(subtype => typeTextLower.includes(subtype));
+
   // Create N CardInstance objects based on quantity
   const instances: CardInstance[] = [];
   for (let i = 0; i < quantity; i++) {
@@ -79,6 +94,7 @@ function transformCuriosaEntry(
       variant: cardVariant,
       rotation: 0,
       owner,
+      ...(isEquipment && { isAttachable: true }),
     });
   }
 
@@ -89,6 +105,7 @@ export interface TransformedDeck {
   siteCards: CardInstance[];
   spellCards: CardInstance[];
   avatar: CardInstance | null;
+  collectionCards: CardInstance[];
 }
 
 export function transformCuriosaDeck(
@@ -97,6 +114,7 @@ export function transformCuriosaDeck(
 ): TransformedDeck {
   const siteCards: CardInstance[] = [];
   const spellCards: CardInstance[] = [];
+  const collectionCards: CardInstance[] = [];
   let avatar: CardInstance | null = null;
 
   // Process decklist
@@ -121,10 +139,17 @@ export function transformCuriosaDeck(
     avatar = avatarInstances[0] || null;
   }
 
+  // Process sideboard as collection
+  for (const entry of response.sideboard) {
+    const instances = transformCuriosaEntry(entry, owner);
+    collectionCards.push(...instances);
+  }
+
   return {
     siteCards,
     spellCards,
     avatar,
+    collectionCards,
   };
 }
 

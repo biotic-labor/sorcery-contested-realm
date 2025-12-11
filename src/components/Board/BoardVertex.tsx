@@ -11,7 +11,6 @@ interface BoardVertexProps {
   onCardClick?: (card: CardInstance) => void;
   onCardHover?: (card: CardInstance | null) => void;
   onVertexHover?: (vertexId: string | null) => void;
-  selectedCardId?: string;
   hoveredCardId?: string;
   onCardContextMenu?: (e: React.MouseEvent, card: CardInstance) => void;
   onCounterIncrement?: (cardId: string) => void;
@@ -25,7 +24,6 @@ export function BoardVertex({
   onCardClick,
   onCardHover,
   onVertexHover,
-  selectedCardId,
   hoveredCardId,
   onCardContextMenu,
   onCounterIncrement,
@@ -80,7 +78,6 @@ export function BoardVertex({
           <DraggableBoardCard
             card={unit}
             sourcePosition={id}
-            isSelected={selectedCardId === unit.id}
             isHovered={hoveredCardId === unit.id}
             onClick={() => onCardClick?.(unit)}
             onHover={onCardHover}

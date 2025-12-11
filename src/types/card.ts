@@ -55,6 +55,10 @@ export interface CardInstance {
   sourceDeck?: 'site' | 'spell'; // Which deck the card was drawn from (for hidden card backs)
   counters?: number; // Counter tokens on this card
   faceDown?: boolean; // Whether the card is flipped face-down
+  isToken?: boolean; // Token cards render at smaller size (except Site tokens and full-size tokens)
+  isFullSizeToken?: boolean; // Full-size tokens like Bruin, Tawny
+  isAttachable?: boolean; // Token can be attached to other cards
+  attachments?: CardInstance[]; // Tokens attached to this card
 }
 
 // CDN base URL for all card assets

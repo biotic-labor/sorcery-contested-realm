@@ -30,23 +30,38 @@ export function Board() {
 
   const {
     board,
-    avatars,
     vertices,
-    selectedCard,
     hoveredCard,
-    selectCard,
     hoverCard,
   } = useGameStore();
 
-  const { adjustCardCounter } = useGameActions();
+  const { adjustCardCounter, raiseUnit } = useGameActions();
   const { localPlayer, connectionStatus } = useMultiplayerStore();
 
   // In multiplayer, player 2 (opponent perspective) sees the board rotated 180 degrees
   const isRotated = connectionStatus === 'connected' && localPlayer === 'opponent';
 
-  const handleCardClick = (card: CardInstance) => {
-    selectCard(selectedCard?.id === card.id ? null : card);
-  };
+  const handleCardClick = useCallback((card: CardInstance) => {
+    const cardType = card.cardData.guardian.type;
+
+    // Only handle raising units to top of stack (not sites)
+    // Avatars are now stored in units and can be raised
+    if (cardType !== 'Site') {
+      for (let rowIndex = 0; rowIndex < board.length; rowIndex++) {
+        for (let colIndex = 0; colIndex < board[rowIndex].length; colIndex++) {
+          const site = board[rowIndex][colIndex];
+          const index = site.units.findIndex((u) => u.id === card.id);
+          if (index !== -1) {
+            // If not on top, raise it
+            if (index < site.units.length - 1) {
+              raiseUnit(card.id, { row: rowIndex, col: colIndex });
+            }
+            return;
+          }
+        }
+      }
+    }
+  }, [board, raiseUnit]);
 
   const handleCardHover = (card: CardInstance | null) => {
     hoverCard(card);
@@ -120,10 +135,8 @@ export function Board() {
                   site={site}
                   row={rowIndex}
                   col={colIndex}
-                  avatar={avatars[siteKey]}
                   onCardClick={handleCardClick}
                   onCardHover={handleCardHover}
-                  selectedCardId={selectedCard?.id}
                   hoveredCardId={hoveredCard?.id}
                   isAvatarZone={isAvatarZone}
                   avatarZoneOwner={avatarZoneOwner}
@@ -173,7 +186,6 @@ export function Board() {
                   onCardClick={handleCardClick}
                   onCardHover={handleCardHover}
                   onVertexHover={handleVertexHover}
-                  selectedCardId={selectedCard?.id}
                   hoveredCardId={hoveredCard?.id}
                   onCardContextMenu={handleCardContextMenu}
                   onCounterIncrement={handleCounterIncrement}

@@ -4,7 +4,7 @@ import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import curiosaRoutes from './routes/curiosa.js';
 import gamesRoutes from './routes/games.js';
-import { cleanupOldGames, cleanupStalePublicGames } from './db.js';
+import { cleanupOldGames, cleanupStalePublicGames, cleanupStaleActiveGames } from './db.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -28,9 +28,10 @@ app.use(express.json());
 app.use('/api/curiosa', curiosaRoutes);
 app.use('/api', gamesRoutes);
 
-// Cleanup old games on startup and every hour
+// Cleanup old games on startup and every minute
 cleanupOldGames();
 cleanupStalePublicGames();
+cleanupStaleActiveGames();
 setInterval(() => {
   const deleted = cleanupOldGames();
   if (deleted > 0) {
@@ -40,7 +41,11 @@ setInterval(() => {
   if (stale > 0) {
     console.log(`Cleaned up ${stale} stale public game(s)`);
   }
-}, 60 * 1000); // Run every minute for public games
+  const abandoned = cleanupStaleActiveGames();
+  if (abandoned > 0) {
+    console.log(`Marked ${abandoned} abandoned game(s) as finished`);
+  }
+}, 60 * 1000); // Run every minute
 
 // Health check endpoint
 app.get('/api/health', (_req, res) => {

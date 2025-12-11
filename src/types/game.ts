@@ -29,9 +29,6 @@ export interface GameState {
   // Board: 4 rows x 5 columns
   board: BoardGrid;
 
-  // Avatars: always on board, keyed by position "row-col"
-  avatars: Record<string, CardInstance>;
-
   // Vertices: units at intersections, keyed by "v-row-col"
   vertices: Record<string, CardInstance[]>;
 
@@ -53,6 +50,10 @@ export interface GameState {
   playerSpellStack: CardInstance[];
   opponentSpellStack: CardInstance[];
 
+  // Collections (sideboard cards)
+  playerCollection: CardInstance[];
+  opponentCollection: CardInstance[];
+
   // Life totals
   playerLife: number;
   opponentLife: number;
@@ -71,8 +72,7 @@ export interface GameState {
   currentTurn: Player;
   turnNumber: number;
 
-  // Selected/hovered card for interactions
-  selectedCard: CardInstance | null;
+  // Hovered card for interactions
   hoveredCard: CardInstance | null;
 
   // Hovered deck for hotkey targeting

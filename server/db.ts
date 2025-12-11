@@ -38,6 +38,12 @@ if (!columnNames.includes('created_at')) {
 if (!columnNames.includes('guest_state')) {
   db.exec('ALTER TABLE games ADD COLUMN guest_state TEXT');
 }
+if (!columnNames.includes('guest_nickname')) {
+  db.exec('ALTER TABLE games ADD COLUMN guest_nickname TEXT');
+}
+if (!columnNames.includes('status')) {
+  db.exec("ALTER TABLE games ADD COLUMN status TEXT DEFAULT 'waiting'");
+}
 
 // Types
 interface GameRow {
@@ -49,7 +55,9 @@ interface GameRow {
   updated_at: number;
   is_public: number;
   host_nickname: string | null;
+  guest_nickname: string | null;
   created_at: number | null;
+  status: string | null;
 }
 
 export interface PublicGameRow {
@@ -58,12 +66,21 @@ export interface PublicGameRow {
   created_at: number;
 }
 
+export interface ActiveGameRow {
+  game_code: string;
+  host_nickname: string | null;
+  guest_nickname: string | null;
+  created_at: number | null;
+  status: string;
+}
+
 // Peer registry
-export function registerGame(gameCode: string, hostPeerId: string): void {
+export function registerGame(gameCode: string, hostPeerId: string, hostNickname: string | null): void {
+  const now = Date.now();
   db.prepare(`
-    INSERT OR REPLACE INTO games (game_code, host_peer_id, guest_peer_id, state, updated_at)
-    VALUES (?, ?, NULL, NULL, ?)
-  `).run(gameCode, hostPeerId, Date.now());
+    INSERT OR REPLACE INTO games (game_code, host_peer_id, guest_peer_id, state, updated_at, host_nickname, created_at)
+    VALUES (?, ?, NULL, NULL, ?, ?, ?)
+  `).run(gameCode, hostPeerId, now, hostNickname, now);
 }
 
 export function registerGuest(gameCode: string, guestPeerId: string): void {
@@ -143,4 +160,33 @@ export function cleanupStalePublicGames(): number {
     'DELETE FROM games WHERE is_public = 1 AND guest_peer_id IS NULL AND updated_at < ?'
   ).run(cutoff);
   return result.changes;
+}
+
+// Active games (for spectator view)
+export function getActiveGames(): ActiveGameRow[] {
+  return db.prepare(`
+    SELECT game_code, host_nickname, guest_nickname, created_at, status
+    FROM games
+    WHERE status = 'playing'
+    ORDER BY created_at DESC
+  `).all() as ActiveGameRow[];
+}
+
+// Cleanup stale 'playing' games (no update in 30+ minutes = abandoned)
+export function cleanupStaleActiveGames(): number {
+  const cutoff = Date.now() - 30 * 60 * 1000;
+  const result = db.prepare(
+    "UPDATE games SET status = 'finished' WHERE status = 'playing' AND updated_at < ?"
+  ).run(cutoff);
+  return result.changes;
+}
+
+export function setGuestNickname(gameCode: string, nickname: string): void {
+  db.prepare('UPDATE games SET guest_nickname = ?, updated_at = ? WHERE game_code = ?')
+    .run(nickname, Date.now(), gameCode);
+}
+
+export function updateGameStatus(gameCode: string, status: 'waiting' | 'playing' | 'finished'): void {
+  db.prepare('UPDATE games SET status = ?, updated_at = ? WHERE game_code = ?')
+    .run(status, Date.now(), gameCode);
 }

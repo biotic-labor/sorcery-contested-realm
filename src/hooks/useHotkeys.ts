@@ -5,10 +5,10 @@ import { useMultiplayerStore } from './useMultiplayer';
 
 export function useHotkeys() {
   // Read-only state from store
-  const { hoveredCard, selectedCard, hoveredDeck } = useGameStore();
+  const { hoveredCard, hoveredDeck, board } = useGameStore();
 
   // Broadcasted actions from useGameActions
-  const { rotateCard, toggleCardUnder, flipCard, drawCards, shuffleDeck } = useGameActions();
+  const { rotateCard, toggleCardUnder, flipCard, drawCards, shuffleDeck, copyCard, raiseUnit, removeCardFromBoard, removeCardFromVertex } = useGameActions();
 
   // Perspective mapping for multiplayer
   const { localPlayer, connectionStatus, sendPing } = useMultiplayerStore();
@@ -34,11 +34,10 @@ export function useHotkeys() {
         return;
       }
 
-      // E key to rotate hovered or selected card
+      // E key to rotate hovered card
       if (event.key === 'e' || event.key === 'E') {
-        const targetCard = hoveredCard || selectedCard;
-        if (targetCard) {
-          rotateCard(targetCard.id);
+        if (hoveredCard) {
+          rotateCard(hoveredCard.id);
         }
       }
 
@@ -55,17 +54,15 @@ export function useHotkeys() {
 
       // U key to toggle card under/over site
       if (event.key === 'u' || event.key === 'U') {
-        const targetCard = hoveredCard || selectedCard;
-        if (targetCard) {
-          toggleCardUnder(targetCard.id);
+        if (hoveredCard) {
+          toggleCardUnder(hoveredCard.id);
         }
       }
 
       // F key to flip card face-down/face-up
       if (event.key === 'f' || event.key === 'F') {
-        const targetCard = hoveredCard || selectedCard;
-        if (targetCard) {
-          flipCard(targetCard.id);
+        if (hoveredCard) {
+          flipCard(hoveredCard.id);
         }
       }
 
@@ -90,9 +87,76 @@ export function useHotkeys() {
           sendPing(xPercent, yPercent);
         }
       }
+
+      // D key to duplicate hovered card
+      if (event.key === 'd' || event.key === 'D') {
+        if (hoveredCard) {
+          // Map to data player for the copy
+          const dataPlayer = isGuest
+            ? (hoveredCard.owner === 'player' ? 'opponent' : 'player')
+            : hoveredCard.owner;
+          copyCard(hoveredCard, dataPlayer);
+        }
+      }
+
+      // T key to raise hovered unit to top of stack
+      if (event.key === 't' || event.key === 'T') {
+        if (hoveredCard) {
+          const cardType = hoveredCard.cardData.guardian.type;
+
+          // Works on all units including avatars (they're in site.units now), but not sites
+          if (cardType !== 'Site') {
+            // Find unit position on board
+            for (let rowIndex = 0; rowIndex < board.length; rowIndex++) {
+              for (let colIndex = 0; colIndex < board[rowIndex].length; colIndex++) {
+                const site = board[rowIndex][colIndex];
+                const index = site.units.findIndex((u) => u.id === hoveredCard.id);
+                if (index !== -1 && index < site.units.length - 1) {
+                  raiseUnit(hoveredCard.id, { row: rowIndex, col: colIndex });
+                  return;
+                }
+              }
+            }
+          }
+        }
+      }
+
+      // Delete key to remove hovered card from board
+      if (event.key === 'Delete' || event.key === 'Backspace') {
+        if (hoveredCard) {
+          const cardType = hoveredCard.cardData.guardian.type;
+
+          // Don't allow deleting avatars
+          if (cardType === 'Avatar') {
+            return;
+          }
+
+          // Check if card is on a vertex
+          const vertices = useGameStore.getState().vertices;
+          for (const [vertexKey, units] of Object.entries(vertices)) {
+            if (units.some((u) => u.id === hoveredCard.id)) {
+              removeCardFromVertex(hoveredCard.id, vertexKey);
+              return;
+            }
+          }
+
+          // Check if card is on a board site
+          for (let rowIndex = 0; rowIndex < board.length; rowIndex++) {
+            for (let colIndex = 0; colIndex < board[rowIndex].length; colIndex++) {
+              const site = board[rowIndex][colIndex];
+              if (site.siteCard?.id === hoveredCard.id ||
+                  site.units.some((u) => u.id === hoveredCard.id) ||
+                  site.underCards.some((u) => u.id === hoveredCard.id)) {
+                removeCardFromBoard(hoveredCard.id, { row: rowIndex, col: colIndex });
+                return;
+              }
+            }
+          }
+        }
+      }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [hoveredCard, selectedCard, rotateCard, toggleCardUnder, flipCard, hoveredDeck, drawCards, shuffleDeck, isGuest, sendPing]);
+  }, [hoveredCard, rotateCard, toggleCardUnder, flipCard, hoveredDeck, drawCards, shuffleDeck, copyCard, isGuest, sendPing, board, raiseUnit, removeCardFromBoard, removeCardFromVertex]);
 }

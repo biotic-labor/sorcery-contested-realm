@@ -21,7 +21,6 @@ export interface GameAction {
 // Serializable game state for sync (excludes UI-only state)
 export interface SerializedGameState {
   board: GameState['board'];
-  avatars: GameState['avatars'];
   vertices: GameState['vertices'];
   playerHand: CardInstance[];
   opponentHand: CardInstance[];
@@ -139,6 +138,14 @@ export interface PublicGame {
   gameCode: string;
   hostNickname: string;
   waitTimeSeconds: number;
+}
+
+// Active game listing for spectator view
+export interface ActiveGame {
+  gameCode: string;
+  hostNickname: string | null;
+  guestNickname: string | null;
+  playTimeSeconds: number;
 }
 
 // Multiplayer state

@@ -3,12 +3,12 @@ import {
   GameState,
   BoardPosition,
   createEmptyBoard,
-  positionKey,
   CardInstance,
   Player,
   DeckType,
 } from '../types';
 import { SerializedGameState } from '../types/multiplayer';
+import { generateCardId } from '../utils/cardTransform';
 
 // localStorage key for persisting guest's private game state
 const GUEST_STATE_KEY = 'sorcery-guest-state';
@@ -19,6 +19,7 @@ interface GuestPersistedState {
   opponentSiteDeck: CardInstance[];
   opponentSpellDeck: CardInstance[];
   opponentGraveyard: CardInstance[];
+  opponentCollection: CardInstance[];
   timestamp: number;
 }
 
@@ -30,6 +31,7 @@ export function saveGuestState(gameCode: string, state: GameState): void {
     opponentSiteDeck: state.opponentSiteDeck,
     opponentSpellDeck: state.opponentSpellDeck,
     opponentGraveyard: state.opponentGraveyard,
+    opponentCollection: state.opponentCollection,
     timestamp: Date.now(),
   };
   try {
@@ -108,12 +110,13 @@ interface GameActions {
   endTurn: () => void;
 
   // Selection
-  selectCard: (card: CardInstance | null) => void;
   hoverCard: (card: CardInstance | null) => void;
 
-  // Avatar placement
+  // Avatar placement (avatars are now stored in site.units like other cards)
   placeAvatar: (card: CardInstance, position: BoardPosition) => void;
-  moveAvatar: (cardId: string, from: BoardPosition, to: BoardPosition) => void;
+
+  // Raise card to top of stack (for click-to-raise)
+  raiseUnit: (cardId: string, position: BoardPosition) => void;
 
   // Deck management
   shuffleDeck: (player: Player, deckType: DeckType) => void;
@@ -134,10 +137,24 @@ interface GameActions {
   addToGraveyard: (card: CardInstance, player: Player) => void;
   removeFromGraveyard: (cardId: string, player: Player) => CardInstance | null;
 
+  // Collection
+  addToCollection: (card: CardInstance, player: Player) => void;
+  removeFromCollection: (cardId: string, player: Player) => CardInstance | null;
+
   // Spell stack (casting zone)
   addToSpellStack: (card: CardInstance, player: Player) => void;
   removeFromSpellStack: (cardId: string, player: Player) => CardInstance | null;
   clearSpellStack: (player: Player) => void;
+
+  // Copy card (creates duplicate with new ID, adds to spell stack)
+  copyCard: (card: CardInstance, player: Player) => CardInstance;
+
+  // Attach token to a card
+  attachToken: (tokenId: string, targetCardId: string) => void;
+  // Detach token from a card (moves to spell stack)
+  detachToken: (tokenId: string, hostCardId: string, player: Player) => void;
+  // Remove attachment from host card (for drag operations - doesn't place anywhere)
+  removeFromAttachments: (tokenId: string, hostCardId: string) => void;
 
   // Deck hover tracking
   setHoveredDeck: (deck: { player: Player; deckType: DeckType } | null) => void;
@@ -153,7 +170,8 @@ interface GameActions {
     siteCards: CardInstance[],
     spellCards: CardInstance[],
     avatar: CardInstance | null,
-    player: Player
+    player: Player,
+    collectionCards?: CardInstance[]
   ) => void;
   clearDecks: (player: Player) => void;
   // Set decks directly (for multiplayer sync - no shuffle)
@@ -165,7 +183,6 @@ interface GameActions {
 
 const initialState: GameState = {
   board: createEmptyBoard(),
-  avatars: {},
   vertices: {},
   playerHand: [],
   opponentHand: [],
@@ -177,6 +194,8 @@ const initialState: GameState = {
   opponentGraveyard: [],
   playerSpellStack: [],
   opponentSpellStack: [],
+  playerCollection: [],
+  opponentCollection: [],
   playerLife: 20,
   opponentLife: 20,
   playerMana: 0,
@@ -187,7 +206,6 @@ const initialState: GameState = {
   opponentThresholds: { air: 0, earth: 0, fire: 0, water: 0 },
   currentTurn: 'player',
   turnNumber: 1,
-  selectedCard: null,
   hoveredCard: null,
   hoveredDeck: null,
   shufflingDeck: null,
@@ -290,77 +308,76 @@ export const useGameStore = create<GameState & GameActions>((set) => ({
 
   rotateCard: (cardId) => {
     set((state) => {
-      // Check board
+      // Helper to rotate a card and its attachments
+      const rotateWithAttachments = (card: CardInstance): CardInstance => {
+        const newRotation = card.rotation === 0 ? 90 : 0;
+        return {
+          ...card,
+          rotation: newRotation,
+          attachments: card.attachments?.map((att) => ({ ...att, rotation: newRotation })),
+        };
+      };
+
+      // Check board (including avatars which are now in site.units)
       const newBoard = state.board.map((row) =>
         row.map((site) => ({
           ...site,
           siteCard: site.siteCard?.id === cardId
-            ? { ...site.siteCard, rotation: site.siteCard.rotation === 0 ? 90 : 0 }
+            ? rotateWithAttachments(site.siteCard)
             : site.siteCard,
           units: site.units.map((u) =>
-            u.id === cardId ? { ...u, rotation: u.rotation === 0 ? 90 : 0 } : u
+            u.id === cardId ? rotateWithAttachments(u) : u
           ),
           underCards: site.underCards.map((u) =>
-            u.id === cardId ? { ...u, rotation: u.rotation === 0 ? 90 : 0 } : u
+            u.id === cardId ? rotateWithAttachments(u) : u
           ),
         }))
       );
-
-      // Check avatars
-      const newAvatars = { ...state.avatars };
-      for (const key of Object.keys(newAvatars)) {
-        if (newAvatars[key].id === cardId) {
-          newAvatars[key] = {
-            ...newAvatars[key],
-            rotation: newAvatars[key].rotation === 0 ? 90 : 0,
-          };
-        }
-      }
 
       // Check vertices
       const newVertices = { ...state.vertices };
       for (const key of Object.keys(newVertices)) {
         newVertices[key] = newVertices[key].map((u) =>
-          u.id === cardId ? { ...u, rotation: u.rotation === 0 ? 90 : 0 } : u
+          u.id === cardId ? rotateWithAttachments(u) : u
         );
       }
 
-      return { board: newBoard, avatars: newAvatars, vertices: newVertices };
+      return { board: newBoard, vertices: newVertices };
     });
   },
 
   untapAllCards: (player) => {
     set((state) => {
+      // Helper to untap a card and its attachments
+      const untapWithAttachments = (card: CardInstance): CardInstance => ({
+        ...card,
+        rotation: 0,
+        attachments: card.attachments?.map((att) => ({ ...att, rotation: 0 })),
+      });
+
       const newBoard = state.board.map((row) =>
         row.map((site) => ({
           ...site,
           siteCard: site.siteCard?.owner === player
-            ? { ...site.siteCard, rotation: 0 }
+            ? untapWithAttachments(site.siteCard)
             : site.siteCard,
           units: site.units.map((u) =>
-            u.owner === player ? { ...u, rotation: 0 } : u
+            u.owner === player ? untapWithAttachments(u) : u
           ),
           underCards: site.underCards.map((u) =>
-            u.owner === player ? { ...u, rotation: 0 } : u
+            u.owner === player ? untapWithAttachments(u) : u
           ),
         }))
       );
 
-      const newAvatars = { ...state.avatars };
-      for (const key of Object.keys(newAvatars)) {
-        if (newAvatars[key].owner === player) {
-          newAvatars[key] = { ...newAvatars[key], rotation: 0 };
-        }
-      }
-
       const newVertices = { ...state.vertices };
       for (const key of Object.keys(newVertices)) {
         newVertices[key] = newVertices[key].map((u) =>
-          u.owner === player ? { ...u, rotation: 0 } : u
+          u.owner === player ? untapWithAttachments(u) : u
         );
       }
 
-      return { board: newBoard, avatars: newAvatars, vertices: newVertices };
+      return { board: newBoard, vertices: newVertices };
     });
   },
 
@@ -377,7 +394,7 @@ export const useGameStore = create<GameState & GameActions>((set) => ({
         return { ...card, counters: newCount };
       };
 
-      // Check board
+      // Check board (including avatars)
       const newBoard = state.board.map((row) =>
         row.map((site) => ({
           ...site,
@@ -393,14 +410,6 @@ export const useGameStore = create<GameState & GameActions>((set) => ({
         }))
       );
 
-      // Check avatars
-      const newAvatars = { ...state.avatars };
-      for (const key of Object.keys(newAvatars)) {
-        if (newAvatars[key].id === cardId) {
-          newAvatars[key] = updateCounter(newAvatars[key]);
-        }
-      }
-
       // Check vertices
       const newVertices = { ...state.vertices };
       for (const key of Object.keys(newVertices)) {
@@ -409,7 +418,7 @@ export const useGameStore = create<GameState & GameActions>((set) => ({
         );
       }
 
-      return { board: newBoard, avatars: newAvatars, vertices: newVertices };
+      return { board: newBoard, vertices: newVertices };
     });
   },
 
@@ -420,7 +429,7 @@ export const useGameStore = create<GameState & GameActions>((set) => ({
         return { ...card, faceDown: !card.faceDown };
       };
 
-      // Check board
+      // Check board (including avatars)
       const newBoard = state.board.map((row) =>
         row.map((site) => ({
           ...site,
@@ -436,14 +445,6 @@ export const useGameStore = create<GameState & GameActions>((set) => ({
         }))
       );
 
-      // Check avatars
-      const newAvatars = { ...state.avatars };
-      for (const key of Object.keys(newAvatars)) {
-        if (newAvatars[key].id === cardId) {
-          newAvatars[key] = toggleFaceDown(newAvatars[key]);
-        }
-      }
-
       // Check vertices
       const newVertices = { ...state.vertices };
       for (const key of Object.keys(newVertices)) {
@@ -452,7 +453,7 @@ export const useGameStore = create<GameState & GameActions>((set) => ({
         );
       }
 
-      return { board: newBoard, avatars: newAvatars, vertices: newVertices };
+      return { board: newBoard, vertices: newVertices };
     });
   },
 
@@ -573,13 +574,6 @@ export const useGameStore = create<GameState & GameActions>((set) => ({
         }))
       );
 
-      const newAvatars = { ...state.avatars };
-      for (const key of Object.keys(newAvatars)) {
-        if (newAvatars[key].owner === player) {
-          newAvatars[key] = { ...newAvatars[key], rotation: 0 };
-        }
-      }
-
       const newVertices = { ...state.vertices };
       for (const key of Object.keys(newVertices)) {
         newVertices[key] = newVertices[key].map((u) =>
@@ -590,7 +584,6 @@ export const useGameStore = create<GameState & GameActions>((set) => ({
       // Reset available mana to total
       return {
         board: newBoard,
-        avatars: newAvatars,
         vertices: newVertices,
         playerMana: player === 'player' ? state.playerManaTotal : state.playerMana,
         opponentMana: player === 'opponent' ? state.opponentManaTotal : state.opponentMana,
@@ -608,31 +601,32 @@ export const useGameStore = create<GameState & GameActions>((set) => ({
     });
   },
 
-  selectCard: (card) => set({ selectedCard: card }),
   hoverCard: (card) => set({ hoveredCard: card }),
 
+  // Place avatar in site.units (avatars are now stored like regular units)
   placeAvatar: (card, position) => {
-    set((state) => ({
-      avatars: {
-        ...state.avatars,
-        [positionKey(position.row, position.col)]: card,
-      },
-    }));
+    set((state) => {
+      const newBoard = [...state.board.map((row) => [...row.map((site) => ({ ...site, units: [...site.units] }))])];
+      newBoard[position.row][position.col].units.push(card);
+      return { board: newBoard };
+    });
   },
 
-  moveAvatar: (cardId, from, to) => {
+  raiseUnit: (cardId, position) => {
     set((state) => {
-      const fromKey = positionKey(from.row, from.col);
-      const toKey = positionKey(to.row, to.col);
-      const avatar = state.avatars[fromKey];
+      const newBoard = [...state.board.map((row) => [...row.map((site) => ({ ...site, units: [...site.units] }))])];
+      const site = newBoard[position.row][position.col];
+      const unitIndex = site.units.findIndex((u) => u.id === cardId);
 
-      if (!avatar || avatar.id !== cardId) return state;
+      // Only raise if found and not already on top
+      if (unitIndex === -1 || unitIndex === site.units.length - 1) {
+        return state;
+      }
 
-      const newAvatars = { ...state.avatars };
-      delete newAvatars[fromKey];
-      newAvatars[toKey] = avatar;
+      const [unit] = site.units.splice(unitIndex, 1);
+      site.units.push(unit);
 
-      return { avatars: newAvatars };
+      return { board: newBoard };
     });
   },
 
@@ -782,6 +776,29 @@ export const useGameStore = create<GameState & GameActions>((set) => ({
     return removedCard;
   },
 
+  // Collection
+  addToCollection: (card, player) => {
+    set((state) => ({
+      playerCollection: player === 'player' ? [...state.playerCollection, card] : state.playerCollection,
+      opponentCollection: player === 'opponent' ? [...state.opponentCollection, card] : state.opponentCollection,
+    }));
+  },
+
+  removeFromCollection: (cardId, player) => {
+    let removedCard: CardInstance | null = null;
+    set((state) => {
+      const collection = player === 'player' ? [...state.playerCollection] : [...state.opponentCollection];
+      const index = collection.findIndex((c) => c.id === cardId);
+      if (index !== -1) {
+        [removedCard] = collection.splice(index, 1);
+      }
+      return player === 'player'
+        ? { playerCollection: collection }
+        : { opponentCollection: collection };
+    });
+    return removedCard;
+  },
+
   // Spell stack (casting zone)
   addToSpellStack: (card, player) => {
     set((state) => ({
@@ -810,6 +827,220 @@ export const useGameStore = create<GameState & GameActions>((set) => ({
       playerSpellStack: player === 'player' ? [] : useGameStore.getState().playerSpellStack,
       opponentSpellStack: player === 'opponent' ? [] : useGameStore.getState().opponentSpellStack,
     }));
+  },
+
+  copyCard: (card, player) => {
+    const copy: CardInstance = {
+      ...card,
+      id: generateCardId(player),
+    };
+    // Add copy to spell stack
+    set((state) => ({
+      playerSpellStack: player === 'player' ? [...state.playerSpellStack, copy] : state.playerSpellStack,
+      opponentSpellStack: player === 'opponent' ? [...state.opponentSpellStack, copy] : state.opponentSpellStack,
+    }));
+    return copy;
+  },
+
+  attachToken: (tokenId, targetCardId) => {
+    set((state) => {
+      // Helper to find and remove token from a location, returning it
+      let token: CardInstance | null = null;
+
+      // Check spell stacks
+      let playerSpellStack = [...state.playerSpellStack];
+      let opponentSpellStack = [...state.opponentSpellStack];
+      const playerIdx = playerSpellStack.findIndex((c) => c.id === tokenId);
+      if (playerIdx !== -1) {
+        [token] = playerSpellStack.splice(playerIdx, 1);
+      } else {
+        const opponentIdx = opponentSpellStack.findIndex((c) => c.id === tokenId);
+        if (opponentIdx !== -1) {
+          [token] = opponentSpellStack.splice(opponentIdx, 1);
+        }
+      }
+
+      // Check hands
+      let playerHand = [...state.playerHand];
+      let opponentHand = [...state.opponentHand];
+      if (!token) {
+        const playerHandIdx = playerHand.findIndex((c) => c.id === tokenId);
+        if (playerHandIdx !== -1) {
+          [token] = playerHand.splice(playerHandIdx, 1);
+        } else {
+          const opponentHandIdx = opponentHand.findIndex((c) => c.id === tokenId);
+          if (opponentHandIdx !== -1) {
+            [token] = opponentHand.splice(opponentHandIdx, 1);
+          }
+        }
+      }
+
+      // Helper to remove token from attachments of any card
+      const removeFromAttachmentsIfPresent = (card: CardInstance): CardInstance => {
+        if (card.attachments) {
+          const idx = card.attachments.findIndex((a) => a.id === tokenId);
+          if (idx !== -1) {
+            const newAttachments = [...card.attachments];
+            [token] = newAttachments.splice(idx, 1);
+            return { ...card, attachments: newAttachments.length > 0 ? newAttachments : undefined };
+          }
+        }
+        return card;
+      };
+
+      // Check board units if not found in spell stacks
+      let newBoard = state.board;
+      if (!token) {
+        newBoard = state.board.map((row) =>
+          row.map((site) => {
+            const newSite = { ...site, units: [...site.units] };
+            const unitIdx = newSite.units.findIndex((u) => u.id === tokenId);
+            if (unitIdx !== -1) {
+              [token] = newSite.units.splice(unitIdx, 1);
+            }
+            return newSite;
+          })
+        );
+      }
+
+      // Check existing attachments on all cards if still not found
+      if (!token) {
+        newBoard = newBoard.map((row) =>
+          row.map((site) => ({
+            ...site,
+            siteCard: site.siteCard ? removeFromAttachmentsIfPresent(site.siteCard) : null,
+            units: site.units.map(removeFromAttachmentsIfPresent),
+            underCards: site.underCards.map(removeFromAttachmentsIfPresent),
+          }))
+        );
+      }
+
+      // Check vertices attachments
+      let newVertices = { ...state.vertices };
+      if (!token) {
+        for (const key of Object.keys(newVertices)) {
+          newVertices[key] = newVertices[key].map(removeFromAttachmentsIfPresent);
+        }
+      }
+
+      if (!token) return state; // Token not found
+
+      // Helper to add attachment to a card
+      const addAttachment = (card: CardInstance): CardInstance => {
+        if (card.id === targetCardId) {
+          return { ...card, attachments: [...(card.attachments || []), token!] };
+        }
+        return card;
+      };
+
+      // Update board with attachment added to target (including avatars in units)
+      const finalBoard = newBoard.map((row) =>
+        row.map((site) => ({
+          ...site,
+          siteCard: site.siteCard ? addAttachment(site.siteCard) : null,
+          units: site.units.map(addAttachment),
+          underCards: site.underCards.map(addAttachment),
+        }))
+      );
+
+      // Apply addAttachment to vertices
+      const finalVertices = { ...newVertices };
+      for (const key of Object.keys(finalVertices)) {
+        finalVertices[key] = finalVertices[key].map(addAttachment);
+      }
+
+      return {
+        board: finalBoard,
+        vertices: finalVertices,
+        playerSpellStack,
+        opponentSpellStack,
+        playerHand,
+        opponentHand,
+      };
+    });
+  },
+
+  detachToken: (tokenId, hostCardId, player) => {
+    set((state) => {
+      let token: CardInstance | null = null;
+
+      // Helper to remove attachment from a card
+      const removeAttachment = (card: CardInstance): CardInstance => {
+        if (card.id === hostCardId && card.attachments) {
+          const idx = card.attachments.findIndex((a) => a.id === tokenId);
+          if (idx !== -1) {
+            const newAttachments = [...card.attachments];
+            [token] = newAttachments.splice(idx, 1);
+            return { ...card, attachments: newAttachments.length > 0 ? newAttachments : undefined };
+          }
+        }
+        return card;
+      };
+
+      // Update board (including avatars)
+      const newBoard = state.board.map((row) =>
+        row.map((site) => ({
+          ...site,
+          siteCard: site.siteCard ? removeAttachment(site.siteCard) : null,
+          units: site.units.map(removeAttachment),
+          underCards: site.underCards.map(removeAttachment),
+        }))
+      );
+
+      // Check vertices
+      const newVertices = { ...state.vertices };
+      for (const key of Object.keys(newVertices)) {
+        newVertices[key] = newVertices[key].map(removeAttachment);
+      }
+
+      if (!token) return state;
+
+      // Add token to spell stack
+      return {
+        board: newBoard,
+        vertices: newVertices,
+        playerSpellStack: player === 'player' ? [...state.playerSpellStack, token] : state.playerSpellStack,
+        opponentSpellStack: player === 'opponent' ? [...state.opponentSpellStack, token] : state.opponentSpellStack,
+      };
+    });
+  },
+
+  removeFromAttachments: (tokenId, hostCardId) => {
+    set((state) => {
+      // Helper to remove attachment from a card
+      const removeAttachment = (card: CardInstance): CardInstance => {
+        if (card.id === hostCardId && card.attachments) {
+          const idx = card.attachments.findIndex((a) => a.id === tokenId);
+          if (idx !== -1) {
+            const newAttachments = [...card.attachments];
+            newAttachments.splice(idx, 1);
+            return { ...card, attachments: newAttachments.length > 0 ? newAttachments : undefined };
+          }
+        }
+        return card;
+      };
+
+      // Update board (including avatars)
+      const newBoard = state.board.map((row) =>
+        row.map((site) => ({
+          ...site,
+          siteCard: site.siteCard ? removeAttachment(site.siteCard) : null,
+          units: site.units.map(removeAttachment),
+          underCards: site.underCards.map(removeAttachment),
+        }))
+      );
+
+      // Check vertices
+      const newVertices = { ...state.vertices };
+      for (const key of Object.keys(newVertices)) {
+        newVertices[key] = newVertices[key].map(removeAttachment);
+      }
+
+      return {
+        board: newBoard,
+        vertices: newVertices,
+      };
+    });
   },
 
   setHoveredDeck: (deck) => set({ hoveredDeck: deck }),
@@ -842,23 +1073,25 @@ export const useGameStore = create<GameState & GameActions>((set) => ({
 
   resetGame: () => set(initialState),
 
-  importDeck: (siteCards, spellCards, avatar, player) => {
+  importDeck: (siteCards, spellCards, avatar, player, collectionCards) => {
     set((state) => {
       const siteDeckKey = player === 'player' ? 'playerSiteDeck' : 'opponentSiteDeck';
       const spellDeckKey = player === 'player' ? 'playerSpellDeck' : 'opponentSpellDeck';
+      const collectionKey = player === 'player' ? 'playerCollection' : 'opponentCollection';
 
       const updates: Partial<GameState> = {
         [siteDeckKey]: siteCards,
         [spellDeckKey]: spellCards,
+        [collectionKey]: collectionCards || [],
       };
 
-      // Place avatar at starting position
+      // Place avatar at starting position in site.units
       if (avatar) {
-        const avatarPosition = player === 'player' ? '3-2' : '0-2';
-        updates.avatars = {
-          ...state.avatars,
-          [avatarPosition]: avatar,
-        };
+        const avatarRow = player === 'player' ? 3 : 0;
+        const avatarCol = 2;
+        const newBoard = [...state.board.map((row) => [...row.map((site) => ({ ...site, units: [...site.units] }))])];
+        newBoard[avatarRow][avatarCol].units.push(avatar);
+        updates.board = newBoard;
       }
 
       return updates as GameState;
@@ -872,9 +1105,15 @@ export const useGameStore = create<GameState & GameActions>((set) => ({
 
   clearDecks: (player) => {
     set((state) => {
-      const avatarPosition = player === 'player' ? '3-2' : '0-2';
-      const newAvatars = { ...state.avatars };
-      delete newAvatars[avatarPosition];
+      // Clear all units owned by this player from the board (including avatars)
+      const newBoard = state.board.map((row) =>
+        row.map((site) => ({
+          ...site,
+          siteCard: site.siteCard?.owner === player ? null : site.siteCard,
+          units: site.units.filter((u) => u.owner !== player),
+          underCards: site.underCards.filter((u) => u.owner !== player),
+        }))
+      );
 
       // Clear vertices for this player
       const newVertices: Record<string, CardInstance[]> = {};
@@ -887,21 +1126,33 @@ export const useGameStore = create<GameState & GameActions>((set) => ({
 
       if (player === 'player') {
         return {
+          board: newBoard,
           playerSiteDeck: [],
           playerSpellDeck: [],
           playerHand: [],
           playerGraveyard: [],
-          avatars: newAvatars,
+          playerCollection: [],
+          playerSpellStack: [],
           vertices: newVertices,
+          playerLife: 20,
+          playerMana: 0,
+          playerManaTotal: 0,
+          playerThresholds: { air: 0, earth: 0, fire: 0, water: 0 },
         };
       } else {
         return {
+          board: newBoard,
           opponentSiteDeck: [],
           opponentSpellDeck: [],
           opponentHand: [],
           opponentGraveyard: [],
-          avatars: newAvatars,
+          opponentCollection: [],
+          opponentSpellStack: [],
           vertices: newVertices,
+          opponentLife: 20,
+          opponentMana: 0,
+          opponentManaTotal: 0,
+          opponentThresholds: { air: 0, earth: 0, fire: 0, water: 0 },
         };
       }
     });
@@ -922,7 +1173,6 @@ export const useGameStore = create<GameState & GameActions>((set) => ({
   applyFullState: (syncedState) => {
     set(() => ({
       board: syncedState.board,
-      avatars: syncedState.avatars,
       vertices: syncedState.vertices,
       playerHand: syncedState.playerHand,
       opponentHand: syncedState.opponentHand,
@@ -945,7 +1195,6 @@ export const useGameStore = create<GameState & GameActions>((set) => ({
       currentTurn: syncedState.currentTurn,
       turnNumber: syncedState.turnNumber,
       // Clear UI refs that may reference stale card instances
-      selectedCard: null,
       hoveredCard: null,
       hoveredDeck: null,
       shufflingDeck: null,

@@ -50,7 +50,8 @@ export function DeckImportModal({ isOpen, onClose, player }: DeckImportModalProp
         transformed.siteCards,
         transformed.spellCards,
         transformed.avatar,
-        effectivePlayer
+        effectivePlayer,
+        transformed.collectionCards
       );
 
       setSuccess(true);

@@ -83,9 +83,9 @@ export function useGameActions() {
     }
   }, [gameStore, broadcast, isMultiplayer, addLogEntry, localPlayer, nickname]);
 
-  const moveAvatar = useCallback((cardId: string, from: BoardPosition, to: BoardPosition) => {
-    gameStore.moveAvatar(cardId, from, to);
-    broadcast('moveAvatar', { cardId, from, to });
+  const raiseUnit = useCallback((cardId: string, position: BoardPosition) => {
+    gameStore.raiseUnit(cardId, position);
+    broadcast('raiseUnit', { cardId, position });
   }, [gameStore, broadcast]);
 
   const rotateCard = useCallback((cardId: string) => {
@@ -297,6 +297,18 @@ export function useGameActions() {
     return card;
   }, [gameStore, broadcast]);
 
+  // Collection
+  const addToCollection = useCallback((card: CardInstance, player: Player) => {
+    gameStore.addToCollection(card, player);
+    broadcast('addToCollection', { card: serializeCard(card), player });
+  }, [gameStore, broadcast]);
+
+  const removeFromCollection = useCallback((cardId: string, player: Player) => {
+    const card = gameStore.removeFromCollection(cardId, player);
+    broadcast('removeFromCollection', { cardId, player });
+    return card;
+  }, [gameStore, broadcast]);
+
   // Spell stack (casting zone)
   const addToSpellStack = useCallback((card: CardInstance, player: Player) => {
     gameStore.addToSpellStack(card, player);
@@ -322,6 +334,39 @@ export function useGameActions() {
     broadcast('clearSpellStack', { player });
   }, [gameStore, broadcast]);
 
+  // Copy card (creates duplicate with new ID, adds to spell stack)
+  const copyCard = useCallback((card: CardInstance, player: Player) => {
+    const copy = gameStore.copyCard(card, player);
+    broadcast('copyCard', { card: serializeCard(copy), player });
+    if (isMultiplayer) {
+      addLogEntry({
+        type: 'action',
+        player: localPlayer,
+        nickname,
+        message: `copied ${card.cardData.name}`,
+      });
+    }
+    return copy;
+  }, [gameStore, broadcast, isMultiplayer, addLogEntry, localPlayer, nickname]);
+
+  // Attach token to a card
+  const attachToken = useCallback((tokenId: string, targetCardId: string) => {
+    gameStore.attachToken(tokenId, targetCardId);
+    broadcast('attachToken', { tokenId, targetCardId });
+  }, [gameStore, broadcast]);
+
+  // Detach token from a card (moves to spell stack)
+  const detachToken = useCallback((tokenId: string, hostCardId: string, player: Player) => {
+    gameStore.detachToken(tokenId, hostCardId, player);
+    broadcast('detachToken', { tokenId, hostCardId, player });
+  }, [gameStore, broadcast]);
+
+  // Remove attachment from host card (for drag operations - doesn't place anywhere)
+  const removeFromAttachments = useCallback((tokenId: string, hostCardId: string) => {
+    gameStore.removeFromAttachments(tokenId, hostCardId);
+    broadcast('removeFromAttachments', { tokenId, hostCardId });
+  }, [gameStore, broadcast]);
+
   // Avatar placement
   const placeAvatar = useCallback((card: CardInstance, position: BoardPosition) => {
     gameStore.placeAvatar(card, position);
@@ -342,9 +387,10 @@ export function useGameActions() {
     siteCards: CardInstance[],
     spellCards: CardInstance[],
     avatar: CardInstance | null,
-    player: Player
+    player: Player,
+    collectionCards?: CardInstance[]
   ) => {
-    gameStore.importDeck(siteCards, spellCards, avatar, player);
+    gameStore.importDeck(siteCards, spellCards, avatar, player, collectionCards);
     // Broadcast avatar (public) with its position, and deck counts (opponent creates hidden cards)
     const avatarPosition = player === 'player' ? { row: 3, col: 2 } : { row: 0, col: 2 };
     broadcast('deckImported', {
@@ -379,7 +425,6 @@ export function useGameActions() {
   }, [gameStore, broadcast, isMultiplayer, addLogEntry, localPlayer, nickname]);
 
   // Non-broadcasted actions (UI only, read from store directly)
-  const selectCard = gameStore.selectCard;
   const hoverCard = gameStore.hoverCard;
   const setHoveredDeck = gameStore.setHoveredDeck;
   const clearDecks = gameStore.clearDecks;
@@ -392,7 +437,7 @@ export function useGameActions() {
     placeUnitOnSite,
     placeUnitOnVertex,
     moveCard,
-    moveAvatar,
+    raiseUnit,
     rotateCard,
     toggleCardUnder,
     adjustCardCounter,
@@ -415,16 +460,21 @@ export function useGameActions() {
     removeCardFromDeckById,
     addToGraveyard,
     removeFromGraveyard,
+    addToCollection,
+    removeFromCollection,
     addToSpellStack,
     removeFromSpellStack,
     clearSpellStack,
+    copyCard,
+    attachToken,
+    detachToken,
+    removeFromAttachments,
     placeAvatar,
     endTurn,
     importDeck,
 
     // Non-broadcasted actions (deck search peek is local - opponent shouldn't see)
     peekDeck: gameStore.peekDeck,
-    selectCard,
     hoverCard,
     setHoveredDeck,
     clearDecks,

@@ -24,6 +24,23 @@ export function DeckZone({ player, deckType, cards, bottomAddTimestamp }: DeckZo
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
   const [searchCards, setSearchCards] = useState<CardInstance[]>([]);
   const [isBottomAdd, setIsBottomAdd] = useState(false);
+  const [shiftHeld, setShiftHeld] = useState(false);
+
+  // Track shift key for bottom indicator
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Shift') setShiftHeld(true);
+    };
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (e.key === 'Shift') setShiftHeld(false);
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+    };
+  }, []);
 
   // Trigger lift animation when a card is added to bottom
   useEffect(() => {
@@ -261,11 +278,28 @@ export function DeckZone({ player, deckType, cards, bottomAddTimestamp }: DeckZo
           style={{
             position: 'absolute',
             inset: 0,
-            backgroundColor: 'rgba(34, 197, 94, 0.2)',
+            backgroundColor: shiftHeld ? 'rgba(251, 191, 36, 0.3)' : 'rgba(34, 197, 94, 0.2)',
             borderRadius: '4px',
             pointerEvents: 'none',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 20,
           }}
-        />
+        >
+          {shiftHeld && (
+            <span style={{
+              backgroundColor: 'rgba(0, 0, 0, 0.8)',
+              color: '#fbbf24',
+              padding: '4px 8px',
+              borderRadius: '4px',
+              fontSize: '14px',
+              fontWeight: 'bold',
+            }}>
+              Bottom
+            </span>
+          )}
+        </div>
       )}
 
       {/* Opponent searching indicator */}

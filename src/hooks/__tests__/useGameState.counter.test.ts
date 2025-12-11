@@ -147,11 +147,12 @@ describe('useGameStore.adjustCardCounter', () => {
       };
       const store = useGameStore.getState();
 
+      // Avatars are now stored in site.units
       store.placeAvatar(avatar, { row: 3, col: 2 });
       store.adjustCardCounter('test-avatar-1', 2);
 
-      const boardAvatar = useGameStore.getState().avatars['3-2'];
-      expect(boardAvatar.counters).toBe(2);
+      const boardUnits = useGameStore.getState().board[3][2].units;
+      expect(boardUnits[0].counters).toBe(2);
     });
   });
 

@@ -80,12 +80,15 @@ Public games show host nickname and wait time. Games removed when:
 
 | Key | Action |
 |-----|--------|
+| `D` | Duplicate hovered card (creates copy in casting zone) |
+| `Del/Backspace` | Delete hovered card from board (not avatars) |
 | `E` | Tap/untap hovered card (90 degree rotation) |
 | `F` | Flip card face-down/face-up |
 | `R` | Shuffle hovered deck |
+| `T` | Raise hovered unit to top of stack |
 | `U` | Toggle card under/over site |
 | `W` | Ping at mouse location (visible to opponent) |
-| `Shift` + drop | Put card on bottom of deck |
+| `Shift` + drop | Put card on bottom of deck; attach equipment to top unit |
 | `1-9` | Draw N cards from hovered deck |
 
 ## Card Counters
@@ -100,22 +103,35 @@ Once a card has counters, a red badge appears in the top-right corner showing th
 
 Counter changes sync automatically in multiplayer.
 
+## Token Cards
+
+Click "Tokens" button (near Collection) to spawn predefined token cards. Tokens spawn to the casting zone.
+
+**Token Types:**
+- **Minion tokens** (xsmall size): Foot Soldier, Frog, Skeleton
+- **Full-size minion tokens**: Bruin, Tawny
+- **Site token**: Rubble (landscape)
+- **Attachable tokens** (xsmall, attach to cards): Stealth, Lance, Disabled, Ward, Flooded
+
+**Attachable tokens** can be dropped onto any card on the board (site, unit, avatar). They appear as small icons in the bottom-right corner of the host card and move/tap with it.
+
 ## Architecture
 
 ### State Management
 Zustand store in `src/hooks/useGameState.ts`:
 - `board: BoardSite[][]` - 4x5 grid, each cell has `siteCard`, `units[]`, `underCards[]`
-- `avatars: Record<string, CardInstance>` - Keyed by `"row-col"`
 - `vertices: Record<string, CardInstance[]>` - Keyed by `"v-row-col"`, units at grid intersections
 - Player/opponent: hands, decks (site + spell), graveyards
 - Life, mana, thresholds, turn state
-- `hoveredCard`, `selectedCard`, `hoveredDeck` for interactions
+- `hoveredCard`, `hoveredDeck` for interactions
+
+Note: Avatars are now stored in `site.units[]` like regular units (no separate `avatars` record).
 
 ### useGameStore vs useGameActions (CRITICAL for Multiplayer)
 
 **`useGameStore`** - Use for:
-- Reading state: `board`, `avatars`, `vertices`, `playerHand`, `opponentHand`, `currentTurn`, etc.
-- UI-only actions that don't affect game state: `hoverCard`, `selectCard`, `setHoveredDeck`
+- Reading state: `board`, `vertices`, `playerHand`, `opponentHand`, `currentTurn`, etc.
+- UI-only actions that don't affect game state: `hoverCard`, `setHoveredDeck`
 
 **`useGameActions`** - Use for ALL actions that modify shared game state:
 - Card placement/movement: `placeCardOnSite`, `placeUnitOnSite`, `moveCard`, `placeAvatar`
@@ -171,7 +187,7 @@ The UI perspective mapping handles displaying the right data in the right positi
 
 **Actions that operate on shared board state (no player param or use cardId):**
 - `rotateCard`, `toggleCardUnder` - find card by ID
-- `moveCard`, `moveAvatar` - use board position
+- `moveCard` - use board position (avatars also use moveCard now)
 - `removeCardFromBoard`, `removeCardFromVertex` - use position/vertexKey
 
 ### Drag & Drop
@@ -202,7 +218,7 @@ The `rotationFix` variable accounts for Player 2's rotated board when calculatin
 ### Card Types
 - **Sites** - Rendered horizontally (landscape), one per grid cell, provides mana + thresholds
 - **Spells** (Minions, Magics, Auras, Artifacts) - Rendered vertically (portrait), stack on sites
-- **Avatars** - Always on board. Starting positions: player `3,2`, opponent `0,2`
+- **Avatars** - Stored in `site.units[]` like other cards. Starting positions: player `3,2`, opponent `0,2`. Can be clicked to raise to top of stack.
 
 ### Key Types (`src/types/`)
 ```typescript

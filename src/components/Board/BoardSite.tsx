@@ -1,4 +1,4 @@
-import { useDroppable } from '@dnd-kit/core';
+import { useDroppable, useDndContext } from '@dnd-kit/core';
 import { BoardSite as BoardSiteType, positionKey, CardInstance } from '../../types';
 import { useMultiplayerStore } from '../../hooks/useMultiplayer';
 import { DraggableBoardCard } from './DraggableBoardCard';
@@ -7,10 +7,8 @@ interface BoardSiteProps {
   site: BoardSiteType;
   row: number;
   col: number;
-  avatar?: CardInstance;
   onCardClick?: (card: CardInstance) => void;
   onCardHover?: (card: CardInstance | null) => void;
-  selectedCardId?: string;
   hoveredCardId?: string;
   isAvatarZone?: boolean;
   avatarZoneOwner?: 'player' | 'opponent';
@@ -25,10 +23,8 @@ export function BoardSite({
   site,
   row,
   col,
-  avatar,
   onCardClick,
   onCardHover,
-  selectedCardId,
   hoveredCardId,
   isAvatarZone = false,
   avatarZoneOwner,
@@ -40,10 +36,29 @@ export function BoardSite({
 }: BoardSiteProps) {
   const id = positionKey(row, col);
   const { isOver, setNodeRef } = useDroppable({ id });
+  const { active } = useDndContext();
 
   // Get multiplayer state to determine card ownership
   const { localPlayer, connectionStatus } = useMultiplayerStore();
   const isMultiplayer = connectionStatus === 'connected';
+
+  // Check if an attachable token is being dragged over this site
+  const draggedCard = active?.data.current?.card as CardInstance | undefined;
+  const isAttachableTokenDrag = draggedCard?.isAttachable === true;
+
+  // Determine which card would receive the attachment (same logic as Game.tsx)
+  // Top unit (last in array) gets priority for attachments
+  let attachmentTargetId: string | null = null;
+  if (isOver && isAttachableTokenDrag) {
+    if (site.units.length > 0) {
+      attachmentTargetId = site.units[site.units.length - 1].id;
+    } else if (site.siteCard) {
+      attachmentTargetId = site.siteCard.id;
+    }
+  }
+
+  // Check if any avatar exists in units (for avatar zone placeholder)
+  const hasAvatarInUnits = site.units.some((u) => u.cardData.guardian.type === 'Avatar');
 
   // When board is rotated (guest), flip the card rotation logic
   const isBoardRotated = isMultiplayer && localPlayer === 'opponent';
@@ -53,8 +68,8 @@ export function BoardSite({
   const isMyCard = (card: CardInstance) => card.owner === localPlayer;
   const myCardZBoost = 10;
 
-  const hasContent = site.siteCard || site.units.length > 0 || avatar;
-  const showAvatarPlaceholder = isAvatarZone && !avatar;
+  const hasContent = site.siteCard || site.units.length > 0;
+  const showAvatarPlaceholder = isAvatarZone && !hasAvatarInUnits;
   const isHighlighted = isOver || isHighlightedByVertex;
 
   return (
@@ -108,7 +123,6 @@ export function BoardSite({
             card={site.siteCard}
             sourcePosition={id}
             showAsHorizontal
-            isSelected={selectedCardId === site.siteCard.id}
             isHovered={hoveredCardId === site.siteCard.id}
             onClick={() => onCardClick?.(site.siteCard!)}
             onHover={onCardHover}
@@ -116,6 +130,7 @@ export function BoardSite({
             onContextMenu={onCardContextMenu}
             onCounterIncrement={onCounterIncrement ? () => onCounterIncrement(site.siteCard!.id) : undefined}
             onCounterDecrement={onCounterDecrement ? () => onCounterDecrement(site.siteCard!.id) : undefined}
+            isAttachmentTarget={attachmentTargetId === site.siteCard.id}
           />
         </div>
       )}
@@ -148,7 +163,6 @@ export function BoardSite({
                 <DraggableBoardCard
                   card={unit}
                   sourcePosition={id}
-                  isSelected={selectedCardId === unit.id}
                   isHovered={hoveredCardId === unit.id}
                   onClick={() => onCardClick?.(unit)}
                   onHover={onCardHover}
@@ -156,30 +170,11 @@ export function BoardSite({
                   onContextMenu={onCardContextMenu}
                   onCounterIncrement={onCounterIncrement ? () => onCounterIncrement(unit.id) : undefined}
                   onCounterDecrement={onCounterDecrement ? () => onCounterDecrement(unit.id) : undefined}
+                  isAttachmentTarget={attachmentTargetId === unit.id}
                 />
               </div>
             );
             })}
-          </div>
-        </div>
-      )}
-
-      {/* Avatar on site */}
-      {avatar && (
-        <div className="absolute inset-0 flex items-center justify-center" style={{ zIndex: 3, pointerEvents: 'none' }}>
-          <div style={{ pointerEvents: 'auto' }}>
-            <DraggableBoardCard
-              card={avatar}
-              sourcePosition={id}
-              isSelected={selectedCardId === avatar.id}
-              isHovered={hoveredCardId === avatar.id}
-              onClick={() => onCardClick?.(avatar)}
-              onHover={onCardHover}
-              isOpponentCard={isOpponentCard(avatar)}
-              onContextMenu={onCardContextMenu}
-              onCounterIncrement={onCounterIncrement ? () => onCounterIncrement(avatar.id) : undefined}
-              onCounterDecrement={onCounterDecrement ? () => onCounterDecrement(avatar.id) : undefined}
-            />
           </div>
         </div>
       )}
@@ -213,7 +208,6 @@ export function BoardSite({
                 <DraggableBoardCard
                   card={card}
                   sourcePosition={id}
-                  isSelected={selectedCardId === card.id}
                   isHovered={isHovered}
                   onClick={() => onCardClick?.(card)}
                   onHover={onCardHover}

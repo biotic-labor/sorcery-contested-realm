@@ -79,7 +79,6 @@ function getSerializedGameState(): SerializedGameState {
   const state = useGameStore.getState();
   return {
     board: state.board,
-    avatars: state.avatars,
     vertices: state.vertices,
     playerHand: state.playerHand,
     opponentHand: state.opponentHand,
@@ -244,8 +243,22 @@ function applyRemoteAction(
       break;
     }
     case 'moveAvatar': {
+      // Legacy support: avatars are now stored in site.units, use moveCard
       const { cardId, from, to } = payload as { cardId: string; from: { row: number; col: number }; to: { row: number; col: number } };
-      gameStore.moveAvatar(cardId, from, to);
+      gameStore.moveCard(cardId, from, to);
+      break;
+    }
+    case 'raiseUnit': {
+      const cardId = payload.cardId as string;
+      const position = payload.position as { row: number; col: number };
+      gameStore.raiseUnit(cardId, position);
+      break;
+    }
+    case 'raiseAvatar': {
+      // Legacy support: avatars are now stored in site.units, use raiseUnit
+      const cardId = payload.cardId as string;
+      const position = payload.position as { row: number; col: number };
+      gameStore.raiseUnit(cardId, position);
       break;
     }
     case 'rotateCard': {
@@ -441,6 +454,19 @@ function applyRemoteAction(
       gameStore.removeFromGraveyard(payload.cardId as string, player);
       break;
     }
+    case 'addToCollection': {
+      // DO NOT swap - data should go in same slot on both clients
+      const card = payload.card as CardInstance;
+      const player = payload.player as Player;
+      gameStore.addToCollection(card, player);
+      break;
+    }
+    case 'removeFromCollection': {
+      // DO NOT swap - data should go in same slot on both clients
+      const player = payload.player as Player;
+      gameStore.removeFromCollection(payload.cardId as string, player);
+      break;
+    }
     case 'addToSpellStack': {
       // DO NOT swap - data should go in same slot on both clients
       const card = payload.card as CardInstance;
@@ -464,6 +490,40 @@ function applyRemoteAction(
       // DO NOT swap - data should go in same slot on both clients
       const player = payload.player as Player;
       gameStore.clearSpellStack(player);
+      break;
+    }
+    case 'copyCard': {
+      // DO NOT swap - data should go in same slot on both clients
+      // The copy has already been created with new ID, just add to spell stack
+      const card = payload.card as CardInstance;
+      const player = payload.player as Player;
+      gameStore.addToSpellStack(card, player);
+      addLogEntry({
+        type: 'action',
+        player: opponentPlayer,
+        nickname: opponentNickname,
+        message: `copied ${card.cardData?.name || 'a card'}`,
+      });
+      break;
+    }
+    case 'attachToken': {
+      const tokenId = payload.tokenId as string;
+      const targetCardId = payload.targetCardId as string;
+      gameStore.attachToken(tokenId, targetCardId);
+      break;
+    }
+    case 'detachToken': {
+      // DO NOT swap - data should go in same slot on both clients
+      const tokenId = payload.tokenId as string;
+      const hostCardId = payload.hostCardId as string;
+      const player = payload.player as Player;
+      gameStore.detachToken(tokenId, hostCardId, player);
+      break;
+    }
+    case 'removeFromAttachments': {
+      const tokenId = payload.tokenId as string;
+      const hostCardId = payload.hostCardId as string;
+      gameStore.removeFromAttachments(tokenId, hostCardId);
       break;
     }
     case 'placeAvatar': {
@@ -580,6 +640,12 @@ export const useMultiplayerStore = create<MultiplayerState & MultiplayerActions>
             disconnectTime: null,
           });
 
+          // Update game status to playing when both players connected
+          const gameCode = get().gameCode;
+          if (gameCode) {
+            updateGameStatusOnServer(gameCode, 'playing');
+          }
+
           // Send hello message
           peerService.send({
             type: 'hello',
@@ -629,8 +695,9 @@ export const useMultiplayerStore = create<MultiplayerState & MultiplayerActions>
 
           // Register game with server for reconnection support
           const peerId = get().myPeerId;
+          const nickname = get().nickname;
           if (peerId) {
-            registerGameWithServer(code, peerId);
+            registerGameWithServer(code, peerId, nickname);
           }
 
           // Set up auto-save to server
@@ -664,6 +731,12 @@ export const useMultiplayerStore = create<MultiplayerState & MultiplayerActions>
             opponentPeerId: peerService.getOpponentPeerId(),
             disconnectTime: null,
           });
+
+          // Update game status to playing when both players connected
+          const gameCode = get().gameCode;
+          if (gameCode) {
+            updateGameStatusOnServer(gameCode, 'playing');
+          }
 
           // Send hello message
           const state = get();
@@ -804,8 +877,9 @@ export const useMultiplayerStore = create<MultiplayerState & MultiplayerActions>
 
           // Register guest with server for reconnection support
           const peerId = get().myPeerId;
-          if (peerId) {
-            registerGuestWithServer(code, peerId);
+          const nickname = get().nickname;
+          if (peerId && nickname) {
+            registerGuestWithServer(code, peerId, nickname);
           }
 
           // Send hello message
@@ -910,8 +984,9 @@ export const useMultiplayerStore = create<MultiplayerState & MultiplayerActions>
           set({ isHost: true, localPlayer: 'player' });
 
           const peerId = get().myPeerId;
+          const nickname = get().nickname;
           if (peerId) {
-            registerGameWithServer(gameCode, peerId);
+            registerGameWithServer(gameCode, peerId, nickname);
           }
 
           setupHostStateAutoSave(gameCode);
@@ -940,9 +1015,14 @@ export const useMultiplayerStore = create<MultiplayerState & MultiplayerActions>
       },
 
       clearSession: () => {
+        const { gameCode } = get();
         peerService.cleanup();
         cleanupGuestStateAutoSave();
         cleanupHostStateAutoSave();
+        // Mark game as finished on server when leaving
+        if (gameCode) {
+          updateGameStatusOnServer(gameCode, 'finished');
+        }
         set({
           connectionStatus: 'disconnected',
           opponentPeerId: null,
@@ -1278,7 +1358,6 @@ export const useMultiplayerStore = create<MultiplayerState & MultiplayerActions>
               const mergedState: SerializedGameState = {
                 // Shared board state from host
                 board: message.state.board,
-                avatars: message.state.avatars,
                 vertices: message.state.vertices,
                 // Host's data (stored in player* slots)
                 playerHand: message.state.playerHand,
@@ -1571,24 +1650,24 @@ function cleanupGuestStateAutoSave(): void {
 let serverStateSaveTimer: ReturnType<typeof setTimeout> | null = null;
 let serverStateSaveUnsubscribe: (() => void) | null = null;
 
-async function registerGameWithServer(gameCode: string, peerId: string): Promise<void> {
+async function registerGameWithServer(gameCode: string, peerId: string, nickname: string): Promise<void> {
   try {
     await fetch(`/api/games/${encodeURIComponent(gameCode)}/register`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ peerId }),
+      body: JSON.stringify({ peerId, nickname }),
     });
   } catch (error) {
     console.error('Failed to register game with server:', error);
   }
 }
 
-async function registerGuestWithServer(gameCode: string, peerId: string): Promise<void> {
+async function registerGuestWithServer(gameCode: string, peerId: string, nickname: string): Promise<void> {
   try {
     await fetch(`/api/games/${encodeURIComponent(gameCode)}/join`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ peerId }),
+      body: JSON.stringify({ peerId, nickname }),
     });
   } catch (error) {
     console.error('Failed to register guest with server:', error);
@@ -1605,6 +1684,18 @@ async function saveStateToServer(gameCode: string): Promise<void> {
     });
   } catch (error) {
     console.error('Failed to save game state to server:', error);
+  }
+}
+
+async function updateGameStatusOnServer(gameCode: string, status: 'waiting' | 'playing' | 'finished'): Promise<void> {
+  try {
+    await fetch(`/api/games/${encodeURIComponent(gameCode)}/status`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status }),
+    });
+  } catch (error) {
+    console.error('Failed to update game status:', error);
   }
 }
 
