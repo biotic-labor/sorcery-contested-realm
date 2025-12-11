@@ -83,6 +83,99 @@ function ClickableValue({ value, color, onIncrement, onDecrement, size = 'normal
   );
 }
 
+interface ThresholdBadgeProps {
+  element: 'air' | 'earth' | 'fire' | 'water';
+  value: number;
+  onIncrement: () => void;
+  onDecrement: () => void;
+  disabled?: boolean;
+}
+
+const ELEMENT_STYLES = {
+  air: { bg: '#22d3ee', text: '#0e7490', label: 'A' },
+  water: { bg: '#3b82f6', text: '#1e40af', label: 'W' },
+  earth: { bg: '#a16207', text: '#fef3c7', label: 'E' },
+  fire: { bg: '#f97316', text: '#9a3412', label: 'F' },
+};
+
+function ThresholdBadge({ element, value, onIncrement, onDecrement, disabled = false }: ThresholdBadgeProps) {
+  const style = ELEMENT_STYLES[element];
+  return (
+    <div
+      style={{
+        position: 'relative',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '2px',
+        userSelect: 'none',
+      }}
+      title={element.charAt(0).toUpperCase() + element.slice(1)}
+    >
+      <div
+        style={{
+          width: '16px',
+          height: '16px',
+          borderRadius: '50%',
+          backgroundColor: style.bg,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontSize: '10px',
+          fontWeight: 'bold',
+          color: style.text,
+        }}
+      >
+        {style.label}
+      </div>
+      <div
+        style={{
+          position: 'relative',
+          minWidth: '20px',
+          height: '24px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          border: '1px solid #4b5563',
+          borderRadius: '4px',
+          backgroundColor: '#374151',
+        }}
+      >
+        {!disabled && (
+          <>
+            <div
+              onClick={onIncrement}
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
+                height: '50%',
+                cursor: 'pointer',
+              }}
+              className="hover:bg-white/10 active:bg-white/20"
+            />
+            <div
+              onClick={onDecrement}
+              style={{
+                position: 'absolute',
+                bottom: 0,
+                left: 0,
+                right: 0,
+                height: '50%',
+                cursor: 'pointer',
+              }}
+              className="hover:bg-white/10 active:bg-white/20"
+            />
+          </>
+        )}
+        <span style={{ fontSize: '12px', fontWeight: 'bold', color: style.bg, pointerEvents: 'none' }}>
+          {value}
+        </span>
+      </div>
+    </div>
+  );
+}
+
 interface PlayerStatBlockProps {
   player: Player;
   label: string;
@@ -96,7 +189,7 @@ interface PlayerStatBlockProps {
 
 function PlayerStatBlock({ player, label, life, mana, manaTotal, thresholds, dataPlayer, disabled = false }: PlayerStatBlockProps) {
   // Broadcasted actions
-  const { adjustLife, adjustMana, adjustManaTotal } = useGameActions();
+  const { adjustLife, adjustMana, adjustManaTotal, adjustThreshold } = useGameActions();
 
   return (
     <div
@@ -159,95 +252,35 @@ function PlayerStatBlock({ player, label, life, mana, manaTotal, thresholds, dat
         </div>
       </div>
       {/* Thresholds */}
-      <div style={{ display: 'flex', justifyContent: 'center', gap: '8px', marginTop: '8px' }}>
-        {thresholds.air > 0 && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
-            <div
-              style={{
-                width: '16px',
-                height: '16px',
-                borderRadius: '50%',
-                backgroundColor: '#22d3ee',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: '10px',
-                fontWeight: 'bold',
-                color: '#0e7490',
-              }}
-              title="Air"
-            >
-              A
-            </div>
-            <span style={{ fontSize: '12px', color: '#22d3ee', fontWeight: 'bold' }}>{thresholds.air}</span>
-          </div>
-        )}
-        {thresholds.water > 0 && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
-            <div
-              style={{
-                width: '16px',
-                height: '16px',
-                borderRadius: '50%',
-                backgroundColor: '#3b82f6',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: '10px',
-                fontWeight: 'bold',
-                color: '#1e40af',
-              }}
-              title="Water"
-            >
-              W
-            </div>
-            <span style={{ fontSize: '12px', color: '#3b82f6', fontWeight: 'bold' }}>{thresholds.water}</span>
-          </div>
-        )}
-        {thresholds.earth > 0 && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
-            <div
-              style={{
-                width: '16px',
-                height: '16px',
-                borderRadius: '50%',
-                backgroundColor: '#a16207',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: '10px',
-                fontWeight: 'bold',
-                color: '#fef3c7',
-              }}
-              title="Earth"
-            >
-              E
-            </div>
-            <span style={{ fontSize: '12px', color: '#a16207', fontWeight: 'bold' }}>{thresholds.earth}</span>
-          </div>
-        )}
-        {thresholds.fire > 0 && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
-            <div
-              style={{
-                width: '16px',
-                height: '16px',
-                borderRadius: '50%',
-                backgroundColor: '#f97316',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: '10px',
-                fontWeight: 'bold',
-                color: '#9a3412',
-              }}
-              title="Fire"
-            >
-              F
-            </div>
-            <span style={{ fontSize: '12px', color: '#f97316', fontWeight: 'bold' }}>{thresholds.fire}</span>
-          </div>
-        )}
+      <div style={{ display: 'flex', justifyContent: 'center', gap: '6px', marginTop: '8px', flexWrap: 'wrap' }}>
+        <ThresholdBadge
+          element="air"
+          value={thresholds.air}
+          onIncrement={() => adjustThreshold(dataPlayer, 'air', 1)}
+          onDecrement={() => adjustThreshold(dataPlayer, 'air', -1)}
+          disabled={disabled}
+        />
+        <ThresholdBadge
+          element="water"
+          value={thresholds.water}
+          onIncrement={() => adjustThreshold(dataPlayer, 'water', 1)}
+          onDecrement={() => adjustThreshold(dataPlayer, 'water', -1)}
+          disabled={disabled}
+        />
+        <ThresholdBadge
+          element="earth"
+          value={thresholds.earth}
+          onIncrement={() => adjustThreshold(dataPlayer, 'earth', 1)}
+          onDecrement={() => adjustThreshold(dataPlayer, 'earth', -1)}
+          disabled={disabled}
+        />
+        <ThresholdBadge
+          element="fire"
+          value={thresholds.fire}
+          onIncrement={() => adjustThreshold(dataPlayer, 'fire', 1)}
+          onDecrement={() => adjustThreshold(dataPlayer, 'fire', -1)}
+          disabled={disabled}
+        />
       </div>
     </div>
   );

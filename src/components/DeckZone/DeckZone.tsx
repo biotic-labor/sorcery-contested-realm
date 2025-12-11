@@ -102,10 +102,15 @@ export function DeckZone({ player, deckType, cards, bottomAddTimestamp }: DeckZo
     // Only allow searching own deck
     if (player !== 'player') return;
     if (cards.length === 0) return;
+    // Prevent opening context menu if search is already open
+    if (isSearchModalOpen) return;
     setContextMenuPos({ x: e.clientX, y: e.clientY });
   };
 
   const handleContextMenuSelect = (count: number) => {
+    // Prevent double-click from opening search twice
+    if (isSearchModalOpen) return;
+
     setContextMenuPos(null);
     const actualCount = count === -1 ? cards.length : count;
     const peekedCards = peekDeck(dataPlayer, deckType, actualCount);

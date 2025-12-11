@@ -42,6 +42,9 @@ export function BoardVertex({
   const isBoardRotated = isMultiplayer && localPlayer === 'opponent';
   const isOpponentCard = (card: CardInstance) =>
     isMultiplayer && (isBoardRotated ? card.owner === localPlayer : card.owner !== localPlayer);
+  // Boost z-index for local player's cards so they render above opponent's
+  const isMyCard = (card: CardInstance) => card.owner === localPlayer;
+  const myCardZBoost = 10;
 
   // Notify parent when drag hover state changes
   const prevIsOver = React.useRef(false);
@@ -71,7 +74,7 @@ export function BoardVertex({
             left: '50%',
             top: '50%',
             transform: `translate(-50%, -50%) translateY(${index * -20}px) translateX(${index * 12}px)`,
-            zIndex: 25 + index,
+            zIndex: 25 + index + (isMyCard(unit) ? myCardZBoost : 0),
           }}
         >
           <DraggableBoardCard

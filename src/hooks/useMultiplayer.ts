@@ -348,6 +348,20 @@ function applyRemoteAction(
       });
       break;
     }
+    case 'adjustThreshold': {
+      // DO NOT swap - data should go in same slot on both clients
+      const player = payload.player as Player;
+      const element = payload.element as 'air' | 'earth' | 'fire' | 'water';
+      const amount = payload.amount as number;
+      gameStore.adjustThreshold(player, element, amount);
+      addLogEntry({
+        type: 'action',
+        player: opponentPlayer,
+        nickname: opponentNickname,
+        message: `${element} threshold ${amount >= 0 ? '+' : ''}${amount}`,
+      });
+      break;
+    }
     case 'shuffleDeck': {
       // DO NOT swap - data should go in same slot on both clients
       const player = payload.player as Player;
@@ -404,6 +418,14 @@ function applyRemoteAction(
       const player = payload.player as Player;
       const deckType = payload.deckType as 'site' | 'spell';
       gameStore.removeTopCardFromDeck(player, deckType);
+      break;
+    }
+    case 'removeCardFromDeckById': {
+      // DO NOT swap - data should go in same slot on both clients
+      const cardId = payload.cardId as string;
+      const player = payload.player as Player;
+      const deckType = payload.deckType as 'site' | 'spell';
+      gameStore.removeCardFromDeckById(cardId, player, deckType);
       break;
     }
     case 'addToGraveyard': {

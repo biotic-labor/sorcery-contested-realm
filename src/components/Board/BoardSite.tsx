@@ -49,6 +49,9 @@ export function BoardSite({
   const isBoardRotated = isMultiplayer && localPlayer === 'opponent';
   const isOpponentCard = (card: CardInstance) =>
     isMultiplayer && (isBoardRotated ? card.owner === localPlayer : card.owner !== localPlayer);
+  // Boost z-index for local player's cards so they render above opponent's
+  const isMyCard = (card: CardInstance) => card.owner === localPlayer;
+  const myCardZBoost = 10;
 
   const hasContent = site.siteCard || site.units.length > 0 || avatar;
   const showAvatarPlaceholder = isAvatarZone && !avatar;
@@ -123,11 +126,11 @@ export function BoardSite({
           <div className="relative">
             {site.units.map((unit, index) => {
               // Own cards: bottom-right visually. Opponent cards: top-left visually.
-              const isMyCard = unit.owner === localPlayer;
+              const isUnitMine = unit.owner === localPlayer;
               // For rotated board (Player 2), local coords are flipped by parent's 180deg rotation
               // So we need to negate our offsets to achieve the desired visual result
               const rotationFix = isBoardRotated ? -1 : 1;
-              const multiplier = (isMyCard ? 1 : -1) * rotationFix;
+              const multiplier = (isUnitMine ? 1 : -1) * rotationFix;
               const baseY = 35;
               const baseX = 25;
               return (
@@ -138,7 +141,7 @@ export function BoardSite({
                   left: '50%',
                   top: '50%',
                   transform: `translate(-50%, -50%) translateY(${(baseY + index * 25) * multiplier}px) translateX(${(baseX + index * 15) * multiplier}px)`,
-                  zIndex: index + 1,
+                  zIndex: index + 1 + (isMyCard(unit) ? myCardZBoost : 0),
                   pointerEvents: 'auto',
                 }}
               >
@@ -203,7 +206,7 @@ export function BoardSite({
                   marginRight: index > 0 ? (isBoardRotated ? '-40px' : '0') : 0,
                   transform: `translateY(${(30 + index * 15) * (isBoardRotated ? -1 : 1)}px) ${isHovered ? 'scale(0.75)' : 'scale(0.65)'}`,
                   transformOrigin: isBoardRotated ? 'center top' : 'center bottom',
-                  zIndex: isHovered ? 20 : index + 1,
+                  zIndex: isHovered ? 20 : index + 1 + (isMyCard(card) ? myCardZBoost : 0),
                   transition: 'transform 0.15s ease, z-index 0s',
                 }}
               >

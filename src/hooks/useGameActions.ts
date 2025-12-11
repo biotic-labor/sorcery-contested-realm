@@ -182,6 +182,20 @@ export function useGameActions() {
     }
   }, [gameStore, broadcast, isMultiplayer, addLogEntry, localPlayer, nickname]);
 
+  // Threshold management
+  const adjustThreshold = useCallback((player: Player, element: 'air' | 'earth' | 'fire' | 'water', amount: number) => {
+    gameStore.adjustThreshold(player, element, amount);
+    broadcast('adjustThreshold', { player, element, amount });
+    if (isMultiplayer) {
+      addLogEntry({
+        type: 'action',
+        player: localPlayer,
+        nickname,
+        message: `${element} threshold ${amount >= 0 ? '+' : ''}${amount}`,
+      });
+    }
+  }, [gameStore, broadcast, isMultiplayer, addLogEntry, localPlayer, nickname]);
+
   // Deck operations
   const shuffleDeck = useCallback((player: Player, deckType: DeckType) => {
     gameStore.shuffleDeck(player, deckType);
@@ -252,6 +266,15 @@ export function useGameActions() {
     const card = gameStore.removeTopCardFromDeck(player, deckType);
     broadcast('removeTopCardFromDeck', { player, deckType });
     return card;
+  }, [gameStore, broadcast]);
+
+  // Remove specific card from deck by ID (prevents race condition duplication)
+  const removeCardFromDeckById = useCallback((cardId: string, player: Player, deckType: DeckType) => {
+    const removed = gameStore.removeCardFromDeckById(cardId, player, deckType);
+    if (removed) {
+      broadcast('removeCardFromDeckById', { cardId, player, deckType });
+    }
+    return removed;
   }, [gameStore, broadcast]);
 
   // Graveyard
@@ -382,12 +405,14 @@ export function useGameActions() {
     adjustLife,
     adjustMana,
     adjustManaTotal,
+    adjustThreshold,
     shuffleDeck,
     drawCards,
     putCardOnTop,
     putCardOnBottom,
     returnCardsToDeck,
     removeTopCardFromDeck,
+    removeCardFromDeckById,
     addToGraveyard,
     removeFromGraveyard,
     addToSpellStack,

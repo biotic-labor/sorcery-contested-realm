@@ -28,6 +28,12 @@ export function useHotkeys() {
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
+      // Ignore hotkeys when typing in an input or textarea
+      const target = event.target as HTMLElement;
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
+        return;
+      }
+
       // E key to rotate hovered or selected card
       if (event.key === 'e' || event.key === 'E') {
         const targetCard = hoveredCard || selectedCard;

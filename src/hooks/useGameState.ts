@@ -100,6 +100,9 @@ interface GameActions {
   adjustMana: (player: Player, amount: number) => void;
   adjustManaTotal: (player: Player, amount: number) => void;
 
+  // Threshold management
+  adjustThreshold: (player: Player, element: 'air' | 'earth' | 'fire' | 'water', amount: number) => void;
+
   // Turn management
   startTurn: (player: Player) => void;
   endTurn: () => void;
@@ -124,6 +127,8 @@ interface GameActions {
 
   // Remove top card from deck (for drag operations)
   removeTopCardFromDeck: (player: Player, deckType: DeckType) => CardInstance | null;
+  // Remove specific card from deck by ID (prevents race condition duplication)
+  removeCardFromDeckById: (cardId: string, player: Player, deckType: DeckType) => boolean;
 
   // Graveyard
   addToGraveyard: (card: CardInstance, player: Player) => void;
@@ -199,10 +204,11 @@ export const useGameStore = create<GameState & GameActions>((set) => ({
       // Get site thresholds
       const siteThresholds = card.cardData.guardian.thresholds;
 
-      // Auto-increment total mana and thresholds when a site is placed
+      // Auto-increment available mana, total mana, and thresholds when a site is placed
       if (card.owner === 'player') {
         return {
           board: newBoard,
+          playerMana: state.playerMana + 1,
           playerManaTotal: state.playerManaTotal + 1,
           playerThresholds: {
             air: state.playerThresholds.air + siteThresholds.air,
@@ -214,6 +220,7 @@ export const useGameStore = create<GameState & GameActions>((set) => ({
       } else {
         return {
           board: newBoard,
+          opponentMana: state.opponentMana + 1,
           opponentManaTotal: state.opponentManaTotal + 1,
           opponentThresholds: {
             air: state.opponentThresholds.air + siteThresholds.air,
@@ -528,6 +535,26 @@ export const useGameStore = create<GameState & GameActions>((set) => ({
     }));
   },
 
+  adjustThreshold: (player, element, amount) => {
+    set((state) => {
+      if (player === 'player') {
+        return {
+          playerThresholds: {
+            ...state.playerThresholds,
+            [element]: Math.max(0, state.playerThresholds[element] + amount),
+          },
+        };
+      } else {
+        return {
+          opponentThresholds: {
+            ...state.opponentThresholds,
+            [element]: Math.max(0, state.opponentThresholds[element] + amount),
+          },
+        };
+      }
+    });
+  },
+
   startTurn: (player) => {
     set((state) => {
       // Untap all cards for this player
@@ -711,6 +738,26 @@ export const useGameStore = create<GameState & GameActions>((set) => ({
     });
 
     return topCard;
+  },
+
+  removeCardFromDeckById: (cardId, player, deckType) => {
+    const state = useGameStore.getState();
+    const deckKey = `${player}${deckType === 'site' ? 'Site' : 'Spell'}Deck` as keyof GameState;
+    const deck = state[deckKey] as CardInstance[];
+
+    const index = deck.findIndex((c) => c.id === cardId);
+    if (index === -1) return false;
+
+    set(() => {
+      const currentDeck = [...(useGameStore.getState()[deckKey] as CardInstance[])];
+      // Re-check in case state changed
+      const currentIndex = currentDeck.findIndex((c) => c.id === cardId);
+      if (currentIndex === -1) return {};
+      currentDeck.splice(currentIndex, 1);
+      return { [deckKey]: currentDeck };
+    });
+
+    return true;
   },
 
   addToGraveyard: (card, player) => {

@@ -77,7 +77,7 @@ export function Game({ onLeave }: GameProps) {
     moveAvatar,
     placeUnitOnVertex,
     removeCardFromVertex,
-    removeTopCardFromDeck,
+    removeCardFromDeckById,
   } = useGameActions();
 
   const {
@@ -280,6 +280,8 @@ export function Game({ onLeave }: GameProps) {
         removeFromGraveyard(card.id, sourcePlayer);
       } else if (source === 'spell-stack' && sourcePlayer) {
         removeFromSpellStack(card.id, sourcePlayer);
+      } else if (source === 'deck' && activePlayer && sourceDeckType) {
+        removeCardFromDeckById(card.id, activePlayer, sourceDeckType);
       }
       return;
     }
@@ -304,7 +306,7 @@ export function Game({ onLeave }: GameProps) {
       } else if (source === 'spell-stack' && sourcePlayer) {
         removeFromSpellStack(card.id, sourcePlayer);
       } else if (source === 'deck' && activePlayer && sourceDeckType) {
-        removeTopCardFromDeck(activePlayer, sourceDeckType);
+        removeCardFromDeckById(card.id, activePlayer, sourceDeckType);
       }
       return;
     }
@@ -328,7 +330,7 @@ export function Game({ onLeave }: GameProps) {
       } else if (source === 'spell-stack' && sourcePlayer) {
         removeFromSpellStack(card.id, sourcePlayer);
       } else if (source === 'deck' && activePlayer && sourceDeckType) {
-        removeTopCardFromDeck(activePlayer, sourceDeckType);
+        removeCardFromDeckById(card.id, activePlayer, sourceDeckType);
       }
       return;
     }
@@ -339,6 +341,12 @@ export function Game({ onLeave }: GameProps) {
 
       // Only allow dropping on your own spell stack
       if (uiStackPlayer !== 'player') {
+        return;
+      }
+
+      // Don't allow Avatar or Site cards on the spell stack
+      const cardType = card.cardData.guardian.type;
+      if (cardType === 'Avatar' || cardType === 'Site') {
         return;
       }
 
@@ -362,7 +370,7 @@ export function Game({ onLeave }: GameProps) {
       } else if (source === 'spell-stack' && sourcePlayer) {
         removeFromSpellStack(card.id, sourcePlayer);
       } else if (source === 'deck' && activePlayer && sourceDeckType) {
-        removeTopCardFromDeck(activePlayer, sourceDeckType);
+        removeCardFromDeckById(card.id, activePlayer, sourceDeckType);
       }
       return;
     }
@@ -394,7 +402,7 @@ export function Game({ onLeave }: GameProps) {
       } else if (source === 'spell-stack' && sourcePlayer) {
         removeFromSpellStack(card.id, sourcePlayer);
       } else if (source === 'deck' && activePlayer && sourceDeckType) {
-        removeTopCardFromDeck(activePlayer, sourceDeckType);
+        removeCardFromDeckById(card.id, activePlayer, sourceDeckType);
       }
       return;
     }
@@ -449,7 +457,7 @@ export function Game({ onLeave }: GameProps) {
       } else {
         placeUnitOnSite(cardToPlace, targetPosition);
       }
-      removeTopCardFromDeck(activePlayer, sourceDeckType);
+      removeCardFromDeckById(card.id, activePlayer, sourceDeckType);
     }
   };
 
