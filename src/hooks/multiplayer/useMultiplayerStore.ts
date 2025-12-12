@@ -1018,7 +1018,8 @@ export const useMultiplayerStore = create<MultiplayerState & MultiplayerActions>
             }
             break;
 
-          case 'reveal_hand':
+          case 'reveal_hand': {
+            const cardNames = message.cards.map((c: { cardData: { name: string } }) => c.cardData.name);
             set({
               revealedHand: {
                 cards: message.cards,
@@ -1029,9 +1030,12 @@ export const useMultiplayerStore = create<MultiplayerState & MultiplayerActions>
               type: 'action',
               player: state.localPlayer === 'player' ? 'opponent' : 'player',
               nickname: message.nickname,
-              message: 'revealed their hand',
+              message: cardNames.length > 0
+                ? `revealed their hand: ${cardNames.join(', ')}`
+                : 'revealed their hand (empty)',
             });
             break;
+          }
 
           case 'ping': {
             // Message contains board-relative percentages (0-1)

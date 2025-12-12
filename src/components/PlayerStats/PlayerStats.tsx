@@ -14,9 +14,9 @@ interface ClickableValueProps {
 }
 
 function ClickableValue({ value, color, onIncrement, onDecrement, size = 'normal', disabled = false }: ClickableValueProps) {
-  const fontSize = size === 'small' ? '18px' : '28px';
-  const minWidth = size === 'small' ? '28px' : '40px';
-  const height = size === 'small' ? '36px' : '48px';
+  const fontSize = size === 'small' ? 'var(--stats-value-small-size)' : 'var(--stats-value-size)';
+  const minWidth = size === 'small' ? 'var(--stats-value-small-width)' : 'var(--stats-value-width)';
+  const height = size === 'small' ? 'var(--stats-value-small-height)' : 'var(--stats-value-height)';
 
   // Flash effect when value changes
   const [flash, setFlash] = useState(false);
@@ -41,10 +41,12 @@ function ClickableValue({ value, color, onIncrement, onDecrement, size = 'normal
         alignItems: 'center',
         justifyContent: 'center',
         userSelect: 'none',
-        border: '1px solid #4b5563',
+        border: '2px solid var(--parchment-border-dark)',
         borderRadius: '4px',
-        backgroundColor: flash ? '#ffffff' : '#374151',
-        transition: 'background-color 0.1s ease-out',
+        background: flash ? '#fff8e7' : 'linear-gradient(180deg, #f5edd6 0%, #e8ddc4 100%)',
+        boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.1), 0 1px 0 rgba(255,255,255,0.5)',
+        transition: 'background 0.1s ease-out',
+        fontFamily: 'var(--font-medieval)',
       }}
     >
       {!disabled && (
@@ -58,9 +60,9 @@ function ClickableValue({ value, color, onIncrement, onDecrement, size = 'normal
               right: 0,
               height: '50%',
               cursor: 'pointer',
-              borderBottom: '1px solid #4b5563',
+              borderBottom: '1px solid var(--parchment-border)',
             }}
-            className="hover:bg-white/10 active:bg-white/20"
+            className="hover:bg-black/5 active:bg-black/10"
           />
           <div
             onClick={onDecrement}
@@ -72,11 +74,18 @@ function ClickableValue({ value, color, onIncrement, onDecrement, size = 'normal
               height: '50%',
               cursor: 'pointer',
             }}
-            className="hover:bg-white/10 active:bg-white/20"
+            className="hover:bg-black/5 active:bg-black/10"
           />
         </>
       )}
-      <span style={{ fontSize, fontWeight: 'bold', color: flash ? '#1f2937' : color, pointerEvents: 'none', transition: 'color 0.1s ease-out' }}>
+      <span style={{
+        fontSize,
+        fontWeight: '700',
+        color: flash ? 'var(--parchment-text)' : color,
+        pointerEvents: 'none',
+        transition: 'color 0.1s ease-out',
+        textShadow: '0 1px 0 rgba(255,255,255,0.5)',
+      }}>
         {value}
       </span>
     </div>
@@ -113,16 +122,19 @@ function ThresholdBadge({ element, value, onIncrement, onDecrement, disabled = f
     >
       <div
         style={{
-          width: '16px',
-          height: '16px',
+          width: 'var(--stats-threshold-badge-size)',
+          height: 'var(--stats-threshold-badge-size)',
           borderRadius: '50%',
           backgroundColor: style.bg,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          fontSize: '10px',
+          fontSize: 'calc(var(--stats-threshold-badge-size) * 0.625)',
           fontWeight: 'bold',
           color: style.text,
+          fontFamily: 'var(--font-medieval)',
+          boxShadow: '0 1px 2px rgba(0,0,0,0.3)',
+          border: '1px solid rgba(0,0,0,0.2)',
         }}
       >
         {style.label}
@@ -130,14 +142,15 @@ function ThresholdBadge({ element, value, onIncrement, onDecrement, disabled = f
       <div
         style={{
           position: 'relative',
-          minWidth: '20px',
-          height: '24px',
+          minWidth: 'var(--stats-threshold-value-width)',
+          height: 'var(--stats-threshold-value-height)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          border: '1px solid #4b5563',
+          border: '1px solid var(--parchment-border)',
           borderRadius: '4px',
-          backgroundColor: '#374151',
+          background: 'linear-gradient(180deg, #f5edd6 0%, #e8ddc4 100%)',
+          boxShadow: 'inset 0 1px 1px rgba(0,0,0,0.1)',
         }}
       >
         {!disabled && (
@@ -152,7 +165,7 @@ function ThresholdBadge({ element, value, onIncrement, onDecrement, disabled = f
                 height: '50%',
                 cursor: 'pointer',
               }}
-              className="hover:bg-white/10 active:bg-white/20"
+              className="hover:bg-black/5 active:bg-black/10"
             />
             <div
               onClick={onDecrement}
@@ -164,11 +177,18 @@ function ThresholdBadge({ element, value, onIncrement, onDecrement, disabled = f
                 height: '50%',
                 cursor: 'pointer',
               }}
-              className="hover:bg-white/10 active:bg-white/20"
+              className="hover:bg-black/5 active:bg-black/10"
             />
           </>
         )}
-        <span style={{ fontSize: '12px', fontWeight: 'bold', color: style.bg, pointerEvents: 'none' }}>
+        <span style={{
+          fontSize: 'calc(var(--stats-threshold-value-height) * 0.5)',
+          fontWeight: '700',
+          color: style.bg,
+          pointerEvents: 'none',
+          fontFamily: 'var(--font-medieval)',
+          textShadow: '0 1px 0 rgba(255,255,255,0.5)',
+        }}>
           {value}
         </span>
       </div>
@@ -194,19 +214,24 @@ function PlayerStatBlock({ player, label, life, mana, manaTotal, thresholds, dat
   return (
     <div
       style={{
-        backgroundColor: '#1f2937',
+        background: 'var(--parchment-bg)',
         borderRadius: '8px',
-        padding: '12px',
-        border: '1px solid #374151',
+        padding: 'var(--stats-padding)',
+        border: '2px solid var(--parchment-border)',
+        boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.2), 0 2px 4px rgba(0,0,0,0.3)',
+        fontFamily: 'var(--font-medieval)',
       }}
     >
       <div
         style={{
-          fontSize: '12px',
-          fontWeight: 'bold',
-          color: player === 'player' ? '#4ade80' : '#f87171',
+          fontSize: 'var(--stats-label-size)',
+          fontWeight: '700',
+          color: player === 'player' ? '#2d5a27' : '#8b2942',
           marginBottom: '8px',
           textAlign: 'center',
+          textTransform: 'uppercase',
+          letterSpacing: '0.1em',
+          textShadow: '0 1px 0 rgba(255,255,255,0.3)',
         }}
       >
         {label}
@@ -214,12 +239,18 @@ function PlayerStatBlock({ player, label, life, mana, manaTotal, thresholds, dat
       <div style={{ display: 'flex', justifyContent: 'space-around', alignItems: 'center' }}>
         {/* Life */}
         <div style={{ textAlign: 'center' }}>
-          <div style={{ fontSize: '10px', color: '#9ca3af', textTransform: 'uppercase', marginBottom: '2px' }}>
+          <div style={{
+            fontSize: 'calc(var(--stats-label-size) * 0.83)',
+            color: 'var(--parchment-text-light)',
+            textTransform: 'uppercase',
+            marginBottom: '2px',
+            letterSpacing: '0.05em',
+          }}>
             Life
           </div>
           <ClickableValue
             value={life}
-            color="#ef4444"
+            color="#8b2942"
             onIncrement={() => adjustLife(dataPlayer, 1)}
             onDecrement={() => adjustLife(dataPlayer, -1)}
             disabled={disabled}
@@ -227,22 +258,28 @@ function PlayerStatBlock({ player, label, life, mana, manaTotal, thresholds, dat
         </div>
         {/* Mana */}
         <div style={{ textAlign: 'center' }}>
-          <div style={{ fontSize: '10px', color: '#9ca3af', textTransform: 'uppercase', marginBottom: '2px' }}>
+          <div style={{
+            fontSize: 'calc(var(--stats-label-size) * 0.83)',
+            color: 'var(--parchment-text-light)',
+            textTransform: 'uppercase',
+            marginBottom: '2px',
+            letterSpacing: '0.05em',
+          }}>
             Mana
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
             <ClickableValue
               value={mana}
-              color="#3b82f6"
+              color="#1e4a7a"
               size="small"
               onIncrement={() => adjustMana(dataPlayer, 1)}
               onDecrement={() => adjustMana(dataPlayer, -1)}
               disabled={disabled}
             />
-            <span style={{ fontSize: '18px', color: '#6b7280' }}>/</span>
+            <span style={{ fontSize: 'var(--stats-value-small-size)', color: 'var(--parchment-text-light)', fontWeight: '600' }}>/</span>
             <ClickableValue
               value={manaTotal}
-              color="#60a5fa"
+              color="#2a5a8a"
               size="small"
               onIncrement={() => adjustManaTotal(dataPlayer, 1)}
               onDecrement={() => adjustManaTotal(dataPlayer, -1)}
@@ -327,7 +364,7 @@ export function PlayerStats() {
         display: 'flex',
         flexDirection: 'column',
         gap: '12px',
-        width: '150px',
+        width: 'var(--stats-width)',
       }}
     >
       <PlayerStatBlock

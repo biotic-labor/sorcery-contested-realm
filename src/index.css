@@ -2,14 +2,110 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  /* Board sizing */
+  --board-cell-width: 160px;
+  --board-cell-height: 120px;
+  --board-gap: 8px;
+  --board-padding: 16px;
+
+  /* Card preview sizing */
+  --preview-size: 220px;
+  --preview-card-width: 157px;
+  --preview-card-height: 220px;
+
+  /* Player stats sizing */
+  --stats-width: 150px;
+
+  /* Medieval theme */
+  --font-medieval: 'Cinzel', serif;
+  --parchment-bg: linear-gradient(135deg, #d4c4a8 0%, #c4b393 25%, #d9c9a5 50%, #c9b896 75%, #d4c4a8 100%);
+  --parchment-border: #8b7355;
+  --parchment-border-dark: #6b5344;
+  --parchment-text: #3d2914;
+  --parchment-text-light: #5c4425;
+  --gold-accent: #c9a227;
+  --gold-dark: #a68419;
+
+  /* Dark stone background pattern */
+  --stone-bg:
+    /* Stone block pattern */
+    repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 40px,
+      rgba(0,0,0,0.1) 40px,
+      rgba(0,0,0,0.1) 41px
+    ),
+    repeating-linear-gradient(
+      90deg,
+      transparent,
+      transparent 60px,
+      rgba(0,0,0,0.1) 60px,
+      rgba(0,0,0,0.1) 61px
+    ),
+    /* Offset row pattern */
+    repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 80px,
+      rgba(255,255,255,0.02) 80px,
+      rgba(255,255,255,0.02) 81px
+    ),
+    /* Subtle noise/texture */
+    radial-gradient(ellipse at 20% 30%, rgba(60,60,70,1) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 70%, rgba(50,55,65,1) 0%, transparent 50%),
+    radial-gradient(ellipse at 40% 80%, rgba(55,60,70,1) 0%, transparent 40%),
+    radial-gradient(ellipse at 70% 20%, rgba(45,50,60,1) 0%, transparent 45%),
+    /* Base color */
+    linear-gradient(180deg, #1a1d24 0%, #12151a 100%);
+  --stats-padding: 12px;
+  --stats-label-size: 12px;
+  --stats-value-size: 28px;
+  --stats-value-small-size: 18px;
+  --stats-value-width: 40px;
+  --stats-value-height: 48px;
+  --stats-value-small-width: 28px;
+  --stats-value-small-height: 36px;
+  --stats-threshold-badge-size: 16px;
+  --stats-threshold-value-width: 20px;
+  --stats-threshold-value-height: 24px;
+}
+
+/* Large screens (external monitors, 1600px+) */
+@media (min-width: 1600px) {
+  :root {
+    --board-cell-width: 200px;
+    --board-cell-height: 150px;
+    --board-gap: 10px;
+    --board-padding: 20px;
+
+    --preview-size: 360px;
+    --preview-card-width: 257px;
+    --preview-card-height: 360px;
+
+    --stats-width: 220px;
+    --stats-padding: 16px;
+    --stats-label-size: 14px;
+    --stats-value-size: 36px;
+    --stats-value-small-size: 24px;
+    --stats-value-width: 52px;
+    --stats-value-height: 60px;
+    --stats-value-small-width: 36px;
+    --stats-value-small-height: 46px;
+    --stats-threshold-badge-size: 20px;
+    --stats-threshold-value-width: 26px;
+    --stats-threshold-value-height: 30px;
+  }
+}
+
 * {
   box-sizing: border-box;
 }
 
 body {
   margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen,
-    Ubuntu, Cantarell, 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+  font-family: var(--font-medieval), -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }

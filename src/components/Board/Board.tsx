@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react';
 import { useGameStore } from '../../hooks/useGameState';
 import { useGameActions } from '../../hooks/useGameActions';
 import { useMultiplayerStore } from '../../hooks/useMultiplayer';
+import { useResponsiveSizes } from '../../hooks/useResponsiveSizes';
 import { positionKey, vertexKey, parseVertexKey, CardInstance, getPlaymatUrl } from '../../types';
 import { BoardSite } from './BoardSite';
 import { BoardVertex } from './BoardVertex';
@@ -37,6 +38,7 @@ export function Board() {
 
   const { adjustCardCounter, raiseUnit } = useGameActions();
   const { localPlayer, connectionStatus } = useMultiplayerStore();
+  const { cellWidth, cellHeight, gap, padding } = useResponsiveSizes();
 
   // In multiplayer, player 2 (opponent perspective) sees the board rotated 180 degrees
   const isRotated = connectionStatus === 'connected' && localPlayer === 'opponent';
@@ -109,10 +111,10 @@ export function Board() {
           data-board-grid
           style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(5, 160px)',
-            gridTemplateRows: 'repeat(4, 120px)',
-            gap: '8px',
-            padding: '16px',
+            gridTemplateColumns: 'repeat(5, var(--board-cell-width))',
+            gridTemplateRows: 'repeat(4, var(--board-cell-height))',
+            gap: 'var(--board-gap)',
+            padding: 'var(--board-padding)',
             backgroundImage: `url(${getPlaymatUrl('orb-of-bal-barath.jpg')})`,
             backgroundSize: 'cover',
             backgroundPosition: 'center',
@@ -158,15 +160,9 @@ export function Board() {
             const units = vertices[vKey] || [];
 
             // Calculate position: vertex (r,c) is at the intersection of sites (r,c), (r,c+1), (r+1,c), (r+1,c+1)
-            // Site width: 160px, height: 120px, gap: 8px
-            const siteWidth = 160;
-            const siteHeight = 120;
-            const gap = 8;
-            const padding = 16;
-
             // Position vertex at the bottom-right corner of site (vertexRow, vertexCol)
-            const left = padding + vertexCol * (siteWidth + gap) + siteWidth + gap / 2;
-            const top = padding + vertexRow * (siteHeight + gap) + siteHeight + gap / 2;
+            const left = padding + vertexCol * (cellWidth + gap) + cellWidth + gap / 2;
+            const top = padding + vertexRow * (cellHeight + gap) + cellHeight + gap / 2;
 
             return (
               <div

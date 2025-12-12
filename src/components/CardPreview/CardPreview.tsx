@@ -27,8 +27,8 @@ export function CardPreview({ card, hideIfFaceDown = false }: CardPreviewProps) 
     return (
       <div
         style={{
-          width: '280px',
-          height: '280px',
+          width: 'var(--preview-size)',
+          height: 'var(--preview-size)',
           backgroundColor: '#1f2937',
           borderRadius: '12px',
           border: '1px solid #374151',
@@ -39,8 +39,8 @@ export function CardPreview({ card, hideIfFaceDown = false }: CardPreviewProps) 
       >
         <div
           style={{
-            width: '200px',
-            height: '280px',
+            width: 'var(--preview-card-width)',
+            height: 'var(--preview-card-height)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -62,16 +62,15 @@ export function CardPreview({ card, hideIfFaceDown = false }: CardPreviewProps) 
   const isSite = guardian.type === 'Site';
   const isFaceDown = hideIfFaceDown && card.faceDown;
 
-  // Container is always 280x280, card is centered inside
-  const containerSize = 280;
-  const cardWidth = isSite ? 280 : 200;
-  const cardHeight = isSite ? 200 : 280;
+  // For sites, swap width/height (landscape orientation)
+  const cardWidth = isSite ? 'var(--preview-card-height)' : 'var(--preview-card-width)';
+  const cardHeight = isSite ? 'var(--preview-card-width)' : 'var(--preview-card-height)';
 
   return (
     <div
       style={{
-        width: `${containerSize}px`,
-        height: `${containerSize}px`,
+        width: 'var(--preview-size)',
+        height: 'var(--preview-size)',
         backgroundColor: '#1f2937',
         borderRadius: '12px',
         border: '1px solid #374151',
@@ -83,8 +82,8 @@ export function CardPreview({ card, hideIfFaceDown = false }: CardPreviewProps) 
     >
       <div
         style={{
-          width: `${cardWidth}px`,
-          height: `${cardHeight}px`,
+          width: cardWidth,
+          height: cardHeight,
           position: 'relative',
           overflow: 'hidden',
           borderRadius: '8px',
@@ -104,17 +103,20 @@ export function CardPreview({ card, hideIfFaceDown = false }: CardPreviewProps) 
           <img
             src={getCardImageUrl(variant.slug)}
             alt={cardData.name}
-            style={{
-              width: isSite ? cardHeight : '100%',
-              height: isSite ? cardWidth : '100%',
+            style={isSite ? {
+              // Site images are stored portrait, rotate to landscape
+              // Position absolute + translate centers, then rotate 90deg
+              position: 'absolute',
+              width: cardHeight,
+              height: cardWidth,
               objectFit: 'cover',
-              transform: isSite ? 'rotate(90deg)' : undefined,
-              transformOrigin: 'center center',
-              position: isSite ? 'absolute' : undefined,
-              top: isSite ? '50%' : undefined,
-              left: isSite ? '50%' : undefined,
-              marginTop: isSite ? -(cardWidth / 2) : undefined,
-              marginLeft: isSite ? -(cardHeight / 2) : undefined,
+              top: '50%',
+              left: '50%',
+              transform: 'translate(-50%, -50%) rotate(90deg)',
+            } : {
+              width: '100%',
+              height: '100%',
+              objectFit: 'cover',
             }}
             onError={() => setImageError(true)}
           />

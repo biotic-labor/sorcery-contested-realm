@@ -31,36 +31,75 @@ export function GameControls() {
   };
 
   return (
-    <div className="flex items-center justify-center p-4 bg-gray-800 rounded-lg border border-gray-600">
-      <div className="flex items-center gap-4">
+    <div
+      style={{
+        background: 'var(--parchment-bg)',
+        border: '2px solid var(--parchment-border)',
+        borderRadius: '8px',
+        padding: '8px',
+        fontFamily: 'var(--font-medieval)',
+        boxShadow: '0 2px 4px rgba(0,0,0,0.3)',
+        width: 'var(--preview-size)',
+      }}
+    >
+      {/* Turn indicator */}
+      <div style={{
+        textAlign: 'center',
+        marginBottom: '6px',
+        fontSize: '11px',
+        color: 'var(--parchment-text-light)',
+        letterSpacing: '0.05em',
+      }}>
+        <span style={{ marginRight: '8px' }}>Turn {turnNumber}</span>
+        <span style={{
+          fontWeight: '700',
+          color: isMyTurn ? '#2d5a27' : '#8b2942',
+        }}>
+          {isMyTurn ? 'Your Turn' : "Opponent's Turn"}
+        </span>
+      </div>
+
+      {/* Buttons */}
+      <div style={{ display: 'flex', gap: '6px' }}>
         <button
           onClick={handleStartTurn}
           disabled={startTurnDisabled}
-          className={`px-4 py-2 text-white text-sm rounded transition-colors ${
-            startTurnDisabled
-              ? 'bg-gray-600 cursor-not-allowed'
-              : 'bg-blue-600 hover:bg-blue-700'
-          }`}
+          style={{
+            flex: 1,
+            padding: '6px 8px',
+            fontSize: '11px',
+            fontWeight: '600',
+            fontFamily: 'var(--font-medieval)',
+            border: '1px solid',
+            borderRadius: '4px',
+            cursor: startTurnDisabled ? 'not-allowed' : 'pointer',
+            backgroundColor: startTurnDisabled ? '#c4b393' : '#3b6ea5',
+            borderColor: startTurnDisabled ? '#a89b7a' : '#2a5280',
+            color: startTurnDisabled ? '#8b7355' : '#fff',
+            textShadow: startTurnDisabled ? 'none' : '0 1px 1px rgba(0,0,0,0.3)',
+            transition: 'background-color 0.15s',
+          }}
         >
-          Start Turn
+          Start
         </button>
-        <div className="text-sm">
-          <span className="text-gray-400">Turn:</span>{' '}
-          <span className="text-white font-bold">{turnNumber}</span>
-        </div>
-        <div className="text-sm">
-          <span className={`font-bold ${isMyTurn ? 'text-green-400' : 'text-red-400'}`}>
-            {isMyTurn ? 'Your Turn' : "Opponent's Turn"}
-          </span>
-        </div>
         <button
           onClick={endTurn}
           disabled={!turnStarted || (isMultiplayer && !isMyTurn)}
-          className={`px-4 py-2 text-white text-sm rounded transition-colors ${
-            !turnStarted || (isMultiplayer && !isMyTurn)
-              ? 'bg-gray-600 cursor-not-allowed'
-              : 'bg-green-600 hover:bg-green-700'
-          }`}
+          style={{
+            flex: 1,
+            padding: '6px 8px',
+            fontSize: '11px',
+            fontWeight: '600',
+            fontFamily: 'var(--font-medieval)',
+            border: '1px solid',
+            borderRadius: '4px',
+            cursor: (!turnStarted || (isMultiplayer && !isMyTurn)) ? 'not-allowed' : 'pointer',
+            backgroundColor: (!turnStarted || (isMultiplayer && !isMyTurn)) ? '#c4b393' : '#2d5a27',
+            borderColor: (!turnStarted || (isMultiplayer && !isMyTurn)) ? '#a89b7a' : '#1e4a1a',
+            color: (!turnStarted || (isMultiplayer && !isMyTurn)) ? '#8b7355' : '#fff',
+            textShadow: (!turnStarted || (isMultiplayer && !isMyTurn)) ? 'none' : '0 1px 1px rgba(0,0,0,0.3)',
+            transition: 'background-color 0.15s',
+          }}
         >
           End Turn
         </button>

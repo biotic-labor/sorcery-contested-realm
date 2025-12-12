@@ -274,6 +274,16 @@ export function Game({ onLeave }: GameProps) {
       const deckPlayer = mapUiPlayerToData(parts[1] as Player);
       const deckType = parts[2] as DeckType;
 
+      // Validate card type matches deck type
+      const cardType = card.cardData.guardian.type;
+      const isSiteCard = cardType === 'Site';
+      const isSiteDeck = deckType === 'site';
+
+      // Site cards can only go in site deck, non-site cards can only go in spell deck
+      if (isSiteCard !== isSiteDeck) {
+        return;
+      }
+
       const uiPlayer = parts[1] as Player;
 
       if (shiftHeldRef.current) {
@@ -615,13 +625,15 @@ export function Game({ onLeave }: GameProps) {
             </div>
           </div>
 
-          {/* Game board */}
-          <div className="flex-1 flex items-center justify-center">
+          {/* Game board with casting zones */}
+          <div className="flex-1 flex items-center justify-center gap-4">
             <Board />
+            {/* Spell Stacks (casting zones) next to board */}
+            <div className="flex flex-col gap-4">
+              <SpellStack player="opponent" />
+              <SpellStack player="player" />
+            </div>
           </div>
-
-          {/* Game controls */}
-          <GameControls />
 
           {/* Your hand and decks (bottom of screen) */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -643,17 +655,15 @@ export function Game({ onLeave }: GameProps) {
             />
           </div>
 
-          {/* Right side: Spell Stacks and Player Stats */}
-          <div className="absolute right-4 top-1/2 -translate-y-1/2 z-30 flex items-center gap-4">
-            {/* Spell Stacks (casting zones) */}
-            <div className="flex flex-col gap-4">
-              <SpellStack player="opponent" />
-              <SpellStack player="player" />
-            </div>
-            <div className="flex flex-col gap-3">
-              <PlayerStats />
-              <TokenZone player="player" />
-            </div>
+          {/* Turn Controls + Tokens - above player hand */}
+          <div className="absolute left-4 bottom-[200px] z-30 flex gap-2 items-end">
+            <GameControls />
+            <TokenZone player="player" />
+          </div>
+
+          {/* Right side: Player Stats */}
+          <div className="absolute right-4 top-1/2 -translate-y-1/2 z-30">
+            <PlayerStats />
           </div>
         </main>
 

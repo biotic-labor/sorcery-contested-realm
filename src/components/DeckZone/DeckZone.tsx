@@ -176,6 +176,11 @@ export function DeckZone({ player, deckType, cards, bottomAddTimestamp }: DeckZo
     }
   };
 
+  // Site decks are horizontal (landscape), spell decks are vertical (portrait)
+  const isHorizontal = deckType === 'site';
+  const deckWidth = isHorizontal ? '110px' : '80px';
+  const deckHeight = isHorizontal ? '80px' : '110px';
+
   return (
     <>
     <div
@@ -187,8 +192,8 @@ export function DeckZone({ player, deckType, cards, bottomAddTimestamp }: DeckZo
       onContextMenu={handleContextMenu}
       className={isBottomAdd ? 'deck-bottom-add' : ''}
       style={{
-        width: '80px',
-        height: '110px',
+        width: deckWidth,
+        height: deckHeight,
         backgroundImage: `url(${cardBackUrl})`,
         backgroundSize: 'cover',
         backgroundPosition: 'center',
@@ -212,8 +217,8 @@ export function DeckZone({ player, deckType, cards, bottomAddTimestamp }: DeckZo
               key={i}
               style={{
                 position: 'absolute',
-                width: '50px',
-                height: '70px',
+                width: isHorizontal ? '70px' : '50px',
+                height: isHorizontal ? '50px' : '70px',
                 backgroundImage: `url(${cardBackUrl})`,
                 backgroundSize: 'cover',
                 backgroundPosition: 'center',
