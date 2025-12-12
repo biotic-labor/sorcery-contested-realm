@@ -71,6 +71,7 @@ export interface GameState {
   // Turn state
   currentTurn: Player;
   turnNumber: number;
+  turnStarted: boolean;
 
   // Hovered card for interactions
   hoveredCard: CardInstance | null;

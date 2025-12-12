@@ -45,8 +45,8 @@ function DraggableAttachment({
       ref={setNodeRef}
       style={{
         position: 'absolute',
-        bottom: `${4 + index * 20}px`,
-        right: `${4 + index * 12}px`,
+        bottom: `${4 - index * 20}px`,
+        right: `${4 - index * 12}px`,
         zIndex: transform ? 1000 : 50 + index,
         transform: combinedTransform,
         transition: 'transform 0.15s ease',
@@ -156,7 +156,7 @@ export function DraggableBoardCard({
           style={{ boxShadow: '0 0 8px rgba(74, 222, 128, 0.6)' }}
         />
       )}
-      {/* Render attachments as draggable xsmall cards stacked bottom-right */}
+      {/* Render attachments as draggable xsmall cards stacked down-right */}
       {hasAttachments && card.attachments!.map((att, idx) => (
         <DraggableAttachment
           key={att.id}

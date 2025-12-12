@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { useDroppable } from '@dnd-kit/core';
+import { useDroppable, useDndContext } from '@dnd-kit/core';
 import { SortableContext, horizontalListSortingStrategy } from '@dnd-kit/sortable';
 import { useGameStore } from '../../hooks/useGameState';
 import { useMultiplayerStore } from '../../hooks/useMultiplayer';
@@ -22,6 +22,10 @@ export function Hand({ player, size = 'medium' }: HandProps) {
   const { setNodeRef, isOver } = useDroppable({ id: `hand-${player}` });
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const { active } = useDndContext();
+
+  // Check if dragging from a non-hand source (board, graveyard, deck, etc.)
+  const isDraggingFromOutside = active && active.data.current?.source !== 'hand';
 
   const {
     playerHand,
@@ -87,7 +91,8 @@ export function Hand({ player, size = 'medium' }: HandProps) {
     });
   };
 
-  const minHeight = size === 'xsmall' ? 'min-h-[100px]' : size === 'small' ? 'min-h-[120px]' : 'min-h-[180px]';
+  // Card heights: xsmall=90, small=128, medium=180. Add ~40px for padding + header
+  const minHeight = size === 'xsmall' ? 'min-h-[130px]' : size === 'small' ? 'min-h-[170px]' : 'min-h-[220px]';
   const padding = size === 'xsmall' || size === 'small' ? 'p-2' : 'p-4';
   const gap = size === 'xsmall' ? 'gap-1' : 'gap-2';
 
@@ -115,7 +120,7 @@ export function Hand({ player, size = 'medium' }: HandProps) {
         ref={setNodeRef}
         onContextMenu={handleContextMenu}
         className={`
-          ${padding} rounded-lg border
+          ${padding} rounded-lg border relative ${minHeight}
           ${isOver ? 'bg-blue-900 border-blue-400' : `${isPlayerHand ? 'bg-gray-800' : 'bg-gray-700'} border-gray-600`}
           transition-colors duration-200
         `}
@@ -149,6 +154,17 @@ export function Hand({ player, size = 'medium' }: HandProps) {
               ))}
             </div>
           </SortableContext>
+        )}
+
+        {/* Drop overlay - covers entire hand when dragging from outside, intercepts drops */}
+        {isDraggingFromOutside && (
+          <div
+            className={`
+              absolute inset-0 rounded-lg z-20
+              ${isOver ? 'bg-blue-500/30 border-2 border-blue-400' : 'bg-black/10'}
+              transition-colors duration-150
+            `}
+          />
         )}
       </div>
 

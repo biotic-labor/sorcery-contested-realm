@@ -4,7 +4,7 @@ import { useMultiplayerStore } from '../../hooks/useMultiplayer';
 
 export function GameControls() {
   // Read-only state from store
-  const { currentTurn, turnNumber } = useGameStore();
+  const { currentTurn, turnNumber, turnStarted } = useGameStore();
 
   // Broadcasted actions
   const { endTurn, startTurn } = useGameActions();
@@ -21,6 +21,9 @@ export function GameControls() {
     ? currentTurn === 'opponent'
     : currentTurn === 'player';
 
+  // Disable Start Turn if not my turn (multiplayer) or turn already started
+  const startTurnDisabled = (isMultiplayer && !isMyTurn) || turnStarted;
+
   // When clicking Start Turn, we need to pass the data player
   const handleStartTurn = () => {
     // Start turn for whoever's turn it currently is (data perspective)
@@ -32,9 +35,9 @@ export function GameControls() {
       <div className="flex items-center gap-4">
         <button
           onClick={handleStartTurn}
-          disabled={isMultiplayer && !isMyTurn}
+          disabled={startTurnDisabled}
           className={`px-4 py-2 text-white text-sm rounded transition-colors ${
-            isMultiplayer && !isMyTurn
+            startTurnDisabled
               ? 'bg-gray-600 cursor-not-allowed'
               : 'bg-blue-600 hover:bg-blue-700'
           }`}
@@ -52,9 +55,9 @@ export function GameControls() {
         </div>
         <button
           onClick={endTurn}
-          disabled={isMultiplayer && !isMyTurn}
+          disabled={!turnStarted || (isMultiplayer && !isMyTurn)}
           className={`px-4 py-2 text-white text-sm rounded transition-colors ${
-            isMultiplayer && !isMyTurn
+            !turnStarted || (isMultiplayer && !isMyTurn)
               ? 'bg-gray-600 cursor-not-allowed'
               : 'bg-green-600 hover:bg-green-700'
           }`}
