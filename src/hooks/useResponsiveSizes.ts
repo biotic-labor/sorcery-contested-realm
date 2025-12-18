@@ -38,13 +38,18 @@ export function useResponsiveSizes(): BoardSizes {
     // Update on mount
     updateSizes();
 
-    // Update on resize (media query changes)
-    const mediaQuery = window.matchMedia('(min-width: 1600px)');
-    mediaQuery.addEventListener('change', updateSizes);
+    // Update on resize (media query changes for all breakpoints)
+    const mediaQueries = [
+      window.matchMedia('(min-width: 1600px)'),
+      window.matchMedia('(min-width: 1920px)'),
+      window.matchMedia('(min-width: 2560px)'),
+    ];
+
+    mediaQueries.forEach(mq => mq.addEventListener('change', updateSizes));
     window.addEventListener('resize', updateSizes);
 
     return () => {
-      mediaQuery.removeEventListener('change', updateSizes);
+      mediaQueries.forEach(mq => mq.removeEventListener('change', updateSizes));
       window.removeEventListener('resize', updateSizes);
     };
   }, []);

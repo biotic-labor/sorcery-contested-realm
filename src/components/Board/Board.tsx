@@ -34,6 +34,7 @@ export function Board() {
     vertices,
     hoveredCard,
     hoverCard,
+    harbingerMarkers,
   } = useGameStore();
 
   const { adjustCardCounter, raiseUnit } = useGameActions();
@@ -147,6 +148,7 @@ export function Board() {
                   onCardContextMenu={handleCardContextMenu}
                   onCounterIncrement={handleCounterIncrement}
                   onCounterDecrement={handleCounterDecrement}
+                  hasHarbingerMarker={harbingerMarkers.includes(siteKey)}
                 />
               );
             })

@@ -14,6 +14,8 @@ import { GameLog } from '../GameLog';
 import { SpellStack } from '../SpellStack';
 import { Card, CardBack } from '../Card';
 import { RevealHandModal } from '../RevealHand';
+import { DiceRollModal } from '../DiceRollModal';
+import { HarbingerDiceModal } from '../HarbingerDiceModal';
 import { PingIndicator } from '../PingIndicator';
 import { useGameStore } from '../../hooks/useGameState';
 import { useGameActions } from '../../hooks/useGameActions';
@@ -97,12 +99,19 @@ export function Game({ onLeave }: GameProps) {
   const {
     connectionStatus,
     opponentNickname,
+    nickname,
     disconnect,
     localPlayer,
     setOpponentDrag,
     disconnectTime,
     revealedHand,
     clearRevealedHand,
+    diceRollState,
+    sendDiceRollResult,
+    sendTurnChoice,
+    harbingerDiceState,
+    sendHarbingerDiceResult,
+    clearHarbingerDiceState,
   } = useMultiplayerStore();
 
   const isMultiplayer = connectionStatus === 'connected';
@@ -686,6 +695,24 @@ export function Game({ onLeave }: GameProps) {
         cards={revealedHand?.cards ?? []}
         nickname={revealedHand?.nickname ?? ''}
         onClose={clearRevealedHand}
+      />
+
+      {/* Dice roll modal - shown when players need to roll for first turn */}
+      <DiceRollModal
+        isOpen={diceRollState !== null}
+        diceRollState={diceRollState}
+        myNickname={nickname}
+        opponentNickname={opponentNickname ?? 'Opponent'}
+        onRoll={sendDiceRollResult}
+        onChoose={sendTurnChoice}
+      />
+
+      {/* Harbinger dice roll modal - shown when importing Harbinger avatar */}
+      <HarbingerDiceModal
+        isOpen={harbingerDiceState !== null}
+        harbingerDiceState={harbingerDiceState}
+        onComplete={sendHarbingerDiceResult}
+        onClose={clearHarbingerDiceState}
       />
 
       {/* Ping indicator - shows ripple when player presses W */}

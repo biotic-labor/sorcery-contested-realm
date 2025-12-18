@@ -80,7 +80,16 @@ export type GameMessage =
   | { type: 'reveal_hand'; cards: CardInstance[]; nickname: string }
 
   // Ping indicator
-  | { type: 'ping'; x: number; y: number };
+  | { type: 'ping'; x: number; y: number }
+
+  // Dice roll for turn order
+  | { type: 'dice_roll_start' }
+  | { type: 'dice_roll_result'; result: number }
+  | { type: 'turn_choice'; startsFirst: boolean }
+
+  // Harbinger special dice roll
+  | { type: 'harbinger_dice_start'; player: Player }
+  | { type: 'harbinger_dice_result'; rolls: number[]; positions: string[] };
 
 // Game log entry
 export interface LogEntry {
@@ -133,6 +142,27 @@ export interface RevealedHandState {
   nickname: string;
 }
 
+// Dice roll state for turn order determination
+export type DiceRollPhase = 'waiting' | 'rolling' | 'choosing' | 'complete' | null;
+
+export interface DiceRollState {
+  phase: DiceRollPhase;
+  myRoll: number | null;
+  opponentRoll: number | null;
+  winner: 'me' | 'opponent' | 'tie' | null;
+}
+
+// Harbinger dice roll state
+export type HarbingerDicePhase = 'rolling' | 'complete';
+
+export interface HarbingerDiceState {
+  phase: HarbingerDicePhase;
+  initiator: Player; // Which player imported the Harbinger deck
+  rolls: number[]; // Accumulated roll results (0-3 values)
+  positions: string[]; // Position keys for markers
+  isLocalInitiator: boolean; // Whether local player is the one rolling
+}
+
 // Public game listing for matchmaking
 export interface PublicGame {
   gameCode: string;
@@ -181,6 +211,12 @@ export interface MultiplayerState {
 
   // Active ping indicator
   activePing: PingState | null;
+
+  // Dice roll for turn order
+  diceRollState: DiceRollState | null;
+
+  // Harbinger dice roll state
+  harbingerDiceState: HarbingerDiceState | null;
 
   // In-game log and chat
   gameLog: LogEntry[];

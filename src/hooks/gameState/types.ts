@@ -52,6 +52,7 @@ export interface GameActions {
   // Turn management
   startTurn: (player: Player) => void;
   endTurn: () => void;
+  setCurrentTurn: (player: Player) => void;
 
   // Selection
   hoverCard: (card: CardInstance | null) => void;
@@ -123,4 +124,8 @@ export interface GameActions {
 
   // Apply full state (for reconnection sync)
   applyFullState: (state: SerializedGameState) => void;
+
+  // Harbinger markers
+  setHarbingerMarkers: (positions: string[]) => void;
+  clearHarbingerMarkers: () => void;
 }

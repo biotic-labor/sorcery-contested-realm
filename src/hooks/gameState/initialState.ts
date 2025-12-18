@@ -29,4 +29,5 @@ export const initialState: GameState = {
   hoveredCard: null,
   hoveredDeck: null,
   shufflingDeck: null,
+  harbingerMarkers: [],
 };

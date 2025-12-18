@@ -13,8 +13,9 @@ import {
   OpponentDragState,
   OpponentSearchState,
   PingState,
+  DiceRollState,
 } from '../../types/multiplayer';
-import { CardInstance } from '../../types';
+import { CardInstance, Player } from '../../types';
 import { generateLogId } from './multiplayerUtils';
 import { applyRemoteAction } from './remoteActionHandler';
 import {
@@ -72,6 +73,17 @@ interface MultiplayerActions {
   addPing: (ping: PingState) => void;
   clearPing: () => void;
 
+  // Dice roll for turn order
+  startDiceRoll: () => void;
+  sendDiceRollResult: () => void;
+  sendTurnChoice: (startsFirst: boolean) => void;
+  setDiceRollState: (state: DiceRollState | null) => void;
+
+  // Harbinger dice roll
+  startHarbingerDiceRoll: (player: Player) => void;
+  sendHarbingerDiceResult: (rolls: number[], positions: string[]) => void;
+  clearHarbingerDiceState: () => void;
+
   // State sync
   sendFullSync: () => void;
   broadcastAction: (actionName: string, payload: Record<string, unknown>) => void;
@@ -106,6 +118,8 @@ export const useMultiplayerStore = create<MultiplayerState & MultiplayerActions>
       opponentSearching: null,
       revealedHand: null,
       activePing: null,
+      diceRollState: null,
+      harbingerDiceState: null,
       gameLog: [],
       savedGames: [],
       disconnectTime: null,
@@ -692,6 +706,158 @@ export const useMultiplayerStore = create<MultiplayerState & MultiplayerActions>
         set({ activePing: null });
       },
 
+      // Dice roll for turn order
+      startDiceRoll: () => {
+        set({
+          diceRollState: {
+            phase: 'waiting',
+            myRoll: null,
+            opponentRoll: null,
+            winner: null,
+          },
+        });
+        peerService.send({ type: 'dice_roll_start' });
+      },
+
+      sendDiceRollResult: () => {
+        const result = Math.floor(Math.random() * 20) + 1;
+        const state = get();
+
+        set({
+          diceRollState: {
+            ...state.diceRollState!,
+            phase: 'rolling',
+            myRoll: result,
+          },
+        });
+
+        peerService.send({ type: 'dice_roll_result', result });
+
+        // Check if both rolls are in to determine winner
+        const currentState = get().diceRollState;
+        if (currentState && currentState.opponentRoll !== null) {
+          const myRoll = result;
+          const opponentRoll = currentState.opponentRoll;
+          let winner: 'me' | 'opponent' | 'tie';
+          if (myRoll > opponentRoll) {
+            winner = 'me';
+          } else if (opponentRoll > myRoll) {
+            winner = 'opponent';
+          } else {
+            winner = 'tie';
+          }
+          set({
+            diceRollState: {
+              phase: winner === 'tie' ? 'waiting' : 'choosing',
+              myRoll,
+              opponentRoll,
+              winner,
+            },
+          });
+        }
+      },
+
+      sendTurnChoice: (startsFirst: boolean) => {
+        const state = get();
+        peerService.send({ type: 'turn_choice', startsFirst });
+
+        // Set the turn based on choice
+        // If winner chooses to start first: winner goes first
+        // If winner chooses to go second: opponent goes first
+        const gameStore = useGameStore.getState();
+        const iAmHost = state.isHost;
+
+        // Determine who starts based on the choice
+        // If I'm the winner and I chose startsFirst=true, I go first
+        // My data slot is 'player' if host, 'opponent' if guest
+        let hostGoesFirst: boolean;
+        if (iAmHost) {
+          hostGoesFirst = startsFirst;
+        } else {
+          hostGoesFirst = !startsFirst;
+        }
+
+        gameStore.setCurrentTurn(hostGoesFirst ? 'player' : 'opponent');
+
+        set({ diceRollState: { ...state.diceRollState!, phase: 'complete' } });
+
+        // Clear after a brief delay
+        setTimeout(() => {
+          set({ diceRollState: null });
+        }, 1500);
+
+        state.addLogEntry({
+          type: 'system',
+          player: null,
+          nickname: null,
+          message: startsFirst
+            ? `${state.nickname} chose to go first`
+            : `${state.nickname} chose to go second`,
+        });
+      },
+
+      setDiceRollState: (diceRollState) => {
+        set({ diceRollState });
+      },
+
+      // Harbinger dice roll actions
+      startHarbingerDiceRoll: (player: Player) => {
+        const state = get();
+        const isLocalInitiator = player === state.localPlayer;
+
+        set({
+          harbingerDiceState: {
+            phase: 'rolling',
+            initiator: player,
+            rolls: [],
+            positions: [],
+            isLocalInitiator,
+          },
+        });
+
+        // Broadcast to opponent
+        peerService.send({ type: 'harbinger_dice_start', player });
+
+        state.addLogEntry({
+          type: 'system',
+          player: null,
+          nickname: null,
+          message: `${isLocalInitiator ? state.nickname : state.opponentNickname} is rolling for Harbinger markers...`,
+        });
+      },
+
+      sendHarbingerDiceResult: (rolls: number[], positions: string[]) => {
+        const state = get();
+        const gameStore = useGameStore.getState();
+
+        // Update local state
+        set({
+          harbingerDiceState: {
+            ...state.harbingerDiceState!,
+            phase: 'complete',
+            rolls,
+            positions,
+          },
+        });
+
+        // Set markers in game state
+        gameStore.setHarbingerMarkers(positions);
+
+        // Broadcast to opponent
+        peerService.send({ type: 'harbinger_dice_result', rolls, positions });
+
+        state.addLogEntry({
+          type: 'system',
+          player: null,
+          nickname: null,
+          message: `Harbinger markers placed at positions ${rolls.join(', ')}`,
+        });
+      },
+
+      clearHarbingerDiceState: () => {
+        set({ harbingerDiceState: null });
+      },
+
       sendFullSync: () => {
         const state = get();
         const gameState = getSerializedGameState();
@@ -774,7 +940,7 @@ export const useMultiplayerStore = create<MultiplayerState & MultiplayerActions>
         const gameStore = useGameStore.getState();
 
         switch (message.type) {
-          case 'hello':
+          case 'hello': {
             set({ opponentNickname: message.nickname });
             state.addLogEntry({
               type: 'system',
@@ -783,15 +949,26 @@ export const useMultiplayerStore = create<MultiplayerState & MultiplayerActions>
               message: `${message.nickname} connected`,
             });
 
-            // If we're the host, send game_start with nickname
+            // If we're the host, check if this is a new game or reconnection
             if (state.isHost) {
-              peerService.send({
-                type: 'game_start',
-                hostGoesFirst: true,
-                nickname: state.nickname,
-              });
+              const gameState = useGameStore.getState();
+              const hasGameState =
+                gameState.turnNumber > 1 ||
+                gameState.playerSiteDeck.length > 0 ||
+                gameState.opponentSiteDeck.length > 0 ||
+                gameState.playerHand.length > 0 ||
+                gameState.opponentHand.length > 0;
+
+              if (hasGameState) {
+                // This is a reconnection, don't do dice roll
+                // full_sync will be sent by the onConnected handler
+              } else {
+                // New game - start dice roll for turn order
+                get().startDiceRoll();
+              }
             }
             break;
+          }
 
           case 'game_start':
             // Set opponent nickname from host (in case hello message was missed)
@@ -1057,6 +1234,141 @@ export const useMultiplayerStore = create<MultiplayerState & MultiplayerActions>
               isLocal: false,
             };
             get().addPing(ping);
+            break;
+          }
+
+          case 'dice_roll_start': {
+            // Opponent (host) initiated dice roll
+            set({
+              diceRollState: {
+                phase: 'waiting',
+                myRoll: null,
+                opponentRoll: null,
+                winner: null,
+              },
+            });
+            break;
+          }
+
+          case 'dice_roll_result': {
+            const currentState = get().diceRollState;
+            if (!currentState) break;
+
+            const opponentRoll = message.result;
+            const myRoll = currentState.myRoll;
+
+            // Update opponent's roll
+            if (myRoll === null) {
+              // We haven't rolled yet
+              set({
+                diceRollState: {
+                  ...currentState,
+                  opponentRoll,
+                },
+              });
+            } else {
+              // Both rolls are in, determine winner
+              let winner: 'me' | 'opponent' | 'tie';
+              if (myRoll > opponentRoll) {
+                winner = 'me';
+              } else if (opponentRoll > myRoll) {
+                winner = 'opponent';
+              } else {
+                winner = 'tie';
+              }
+              set({
+                diceRollState: {
+                  ...currentState,
+                  opponentRoll,
+                  winner,
+                  phase: winner === 'tie' ? 'waiting' : 'choosing',
+                },
+              });
+            }
+            break;
+          }
+
+          case 'turn_choice': {
+            // Opponent (winner) made their choice
+            const gameStore = useGameStore.getState();
+            const iAmHost = state.isHost;
+            const opponentStartsFirst = message.startsFirst;
+
+            // Opponent chose, so set the turn accordingly
+            let hostGoesFirst: boolean;
+            if (iAmHost) {
+              // I'm host, opponent is guest. If they start first, host doesn't go first.
+              hostGoesFirst = !opponentStartsFirst;
+            } else {
+              // I'm guest, opponent is host. If they start first, host goes first.
+              hostGoesFirst = opponentStartsFirst;
+            }
+
+            gameStore.setCurrentTurn(hostGoesFirst ? 'player' : 'opponent');
+
+            const currentDiceState = get().diceRollState;
+            if (currentDiceState) {
+              set({ diceRollState: { ...currentDiceState, phase: 'complete' } });
+            }
+
+            // Clear after a brief delay
+            setTimeout(() => {
+              set({ diceRollState: null });
+            }, 1500);
+
+            state.addLogEntry({
+              type: 'system',
+              player: null,
+              nickname: null,
+              message: opponentStartsFirst
+                ? `${state.opponentNickname} chose to go first`
+                : `${state.opponentNickname} chose to go second`,
+            });
+            break;
+          }
+
+          case 'harbinger_dice_start': {
+            // Opponent initiated Harbinger dice roll
+            const isLocalInitiator = message.player === state.localPlayer;
+            set({
+              harbingerDiceState: {
+                phase: 'rolling',
+                initiator: message.player,
+                rolls: [],
+                positions: [],
+                isLocalInitiator,
+              },
+            });
+
+            state.addLogEntry({
+              type: 'system',
+              player: null,
+              nickname: null,
+              message: `${isLocalInitiator ? state.nickname : state.opponentNickname} is rolling for Harbinger markers...`,
+            });
+            break;
+          }
+
+          case 'harbinger_dice_result': {
+            // Opponent finished rolling, apply the same markers locally
+            const gameStore = useGameStore.getState();
+            gameStore.setHarbingerMarkers(message.positions);
+
+            set({
+              harbingerDiceState: {
+                ...get().harbingerDiceState!,
+                phase: 'complete',
+                rolls: message.rolls,
+                positions: message.positions,
+              },
+            });
+
+            state.addLogEntry({
+              type: 'system',
+              player: null,
+              nickname: null,
+              message: `Harbinger markers placed at positions ${message.rolls.join(', ')}`,
+            });
             break;
           }
         }

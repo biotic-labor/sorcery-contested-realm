@@ -2,6 +2,7 @@ import { useDroppable, useDndContext } from '@dnd-kit/core';
 import { BoardSite as BoardSiteType, positionKey, CardInstance } from '../../types';
 import { useMultiplayerStore } from '../../hooks/useMultiplayer';
 import { DraggableBoardCard } from './DraggableBoardCard';
+import { CthulhuMarker } from './CthulhuMarker';
 
 interface BoardSiteProps {
   site: BoardSiteType;
@@ -17,6 +18,7 @@ interface BoardSiteProps {
   onCardContextMenu?: (e: React.MouseEvent, card: CardInstance) => void;
   onCounterIncrement?: (cardId: string) => void;
   onCounterDecrement?: (cardId: string) => void;
+  hasHarbingerMarker?: boolean; // Whether this position has a Cthulhu marker
 }
 
 export function BoardSite({
@@ -33,6 +35,7 @@ export function BoardSite({
   onCardContextMenu,
   onCounterIncrement,
   onCounterDecrement,
+  hasHarbingerMarker = false,
 }: BoardSiteProps) {
   const id = positionKey(row, col);
   const { isOver, setNodeRef } = useDroppable({ id });
@@ -97,6 +100,23 @@ export function BoardSite({
       >
         {row * 5 + col + 1}
       </div>
+
+      {/* Harbinger/Cthulhu marker */}
+      {hasHarbingerMarker && (
+        <div
+          className="absolute pointer-events-none"
+          style={{
+            zIndex: 50,
+            transform: labelCounterRotate ? 'rotate(180deg)' : undefined,
+            top: labelCounterRotate ? 'auto' : '4px',
+            bottom: labelCounterRotate ? '4px' : 'auto',
+            right: labelCounterRotate ? 'auto' : '4px',
+            left: labelCounterRotate ? '4px' : 'auto',
+          }}
+        >
+          <CthulhuMarker size={28} />
+        </div>
+      )}
 
       {/* Avatar placeholder */}
       {showAvatarPlaceholder && (

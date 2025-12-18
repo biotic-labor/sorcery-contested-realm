@@ -8,6 +8,7 @@ type GetState = () => GameState;
 export interface GameControlActions {
   startTurn: (player: Player) => void;
   endTurn: () => void;
+  setCurrentTurn: (player: Player) => void;
   hoverCard: (card: CardInstance | null) => void;
   setHoveredDeck: (deck: { player: Player; deckType: DeckType } | null) => void;
   resetGame: () => void;
@@ -21,6 +22,8 @@ export interface GameControlActions {
   clearDecks: (player: Player) => void;
   setDecks: (player: Player, siteCards: CardInstance[], spellCards: CardInstance[]) => void;
   applyFullState: (state: SerializedGameState) => void;
+  setHarbingerMarkers: (positions: string[]) => void;
+  clearHarbingerMarkers: () => void;
 }
 
 export function createGameControlActions(
@@ -78,6 +81,10 @@ export function createGameControlActions(
           turnStarted: false,
         };
       });
+    },
+
+    setCurrentTurn: (player) => {
+      set(() => ({ currentTurn: player }));
     },
 
     hoverCard: (card) => set(() => ({ hoveredCard: card })),
@@ -206,6 +213,14 @@ export function createGameControlActions(
         hoveredDeck: null,
         shufflingDeck: null,
       }));
+    },
+
+    setHarbingerMarkers: (positions) => {
+      set(() => ({ harbingerMarkers: positions }));
+    },
+
+    clearHarbingerMarkers: () => {
+      set(() => ({ harbingerMarkers: [] }));
     },
   };
 }

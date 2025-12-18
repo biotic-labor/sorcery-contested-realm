@@ -19,7 +19,7 @@ export function DeckImportModal({ isOpen, onClose, player }: DeckImportModalProp
   const [success, setSuccess] = useState(false);
 
   const { importDeck, clearDecks } = useGameActions();
-  const { localPlayer, connectionStatus } = useMultiplayerStore();
+  const { localPlayer, connectionStatus, startHarbingerDiceRoll } = useMultiplayerStore();
   const isMultiplayer = connectionStatus === 'connected';
 
   const handleImport = async () => {
@@ -53,6 +53,11 @@ export function DeckImportModal({ isOpen, onClose, player }: DeckImportModalProp
         effectivePlayer,
         transformed.collectionCards
       );
+
+      // Check if avatar is Harbinger - trigger special dice roll
+      if (transformed.avatar?.cardData.name === 'Harbinger') {
+        startHarbingerDiceRoll(effectivePlayer);
+      }
 
       setSuccess(true);
       setDeckInput('');

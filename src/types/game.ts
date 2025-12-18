@@ -81,6 +81,9 @@ export interface GameState {
 
   // Currently shuffling deck (for animation)
   shufflingDeck: { player: Player; deckType: DeckType } | null;
+
+  // Harbinger markers (position keys where Cthulhu markers are placed)
+  harbingerMarkers: string[];
 }
 
 // Helper to create empty board
@@ -120,4 +123,25 @@ export function parseVertexKey(key: string): VertexPosition {
   const row = Number(parts[1]);
   const col = Number(parts[2]);
   return { row, col };
+}
+
+// Harbinger dice helpers
+// Dice values 1-20 map to board positions (row-major order)
+export function diceValueToPosition(diceValue: number): BoardPosition {
+  const row = Math.floor((diceValue - 1) / 5);
+  const col = (diceValue - 1) % 5;
+  return { row, col };
+}
+
+export function positionToDiceValue(position: BoardPosition): number {
+  return position.row * 5 + position.col + 1;
+}
+
+// Roll N unique d20 values (re-rolls duplicates)
+export function rollUniqueD20s(count: number): number[] {
+  const results: Set<number> = new Set();
+  while (results.size < count) {
+    results.add(Math.floor(Math.random() * 20) + 1);
+  }
+  return Array.from(results);
 }
