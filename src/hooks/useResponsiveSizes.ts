@@ -42,7 +42,6 @@ export function useResponsiveSizes(): BoardSizes {
     const mediaQueries = [
       window.matchMedia('(min-width: 1600px)'),
       window.matchMedia('(min-width: 1920px)'),
-      window.matchMedia('(min-width: 2560px)'),
     ];
 
     mediaQueries.forEach(mq => mq.addEventListener('change', updateSizes));

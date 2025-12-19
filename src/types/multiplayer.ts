@@ -32,6 +32,8 @@ export interface SerializedGameState {
   opponentGraveyard: CardInstance[];
   playerSpellStack: CardInstance[];
   opponentSpellStack: CardInstance[];
+  playerIsMagician?: boolean;
+  opponentIsMagician?: boolean;
   playerLife: number;
   opponentLife: number;
   playerMana: number;

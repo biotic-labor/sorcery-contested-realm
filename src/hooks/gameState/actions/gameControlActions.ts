@@ -17,10 +17,12 @@ export interface GameControlActions {
     spellCards: CardInstance[],
     avatar: CardInstance | null,
     player: Player,
-    collectionCards?: CardInstance[]
+    collectionCards?: CardInstance[],
+    isMagician?: boolean
   ) => void;
   clearDecks: (player: Player) => void;
   setDecks: (player: Player, siteCards: CardInstance[], spellCards: CardInstance[]) => void;
+  setIsMagician: (player: Player, isMagician: boolean) => void;
   applyFullState: (state: SerializedGameState) => void;
   setHarbingerMarkers: (positions: string[]) => void;
   clearHarbingerMarkers: () => void;
@@ -93,16 +95,18 @@ export function createGameControlActions(
 
     resetGame: () => set(() => initialState),
 
-    importDeck: (siteCards, spellCards, avatar, player, collectionCards) => {
+    importDeck: (siteCards, spellCards, avatar, player, collectionCards, isMagician) => {
       set((state) => {
         const siteDeckKey = player === 'player' ? 'playerSiteDeck' : 'opponentSiteDeck';
         const spellDeckKey = player === 'player' ? 'playerSpellDeck' : 'opponentSpellDeck';
         const collectionKey = player === 'player' ? 'playerCollection' : 'opponentCollection';
+        const magicianKey = player === 'player' ? 'playerIsMagician' : 'opponentIsMagician';
 
         const updates: Partial<GameState> = {
           [siteDeckKey]: siteCards,
           [spellDeckKey]: spellCards,
           [collectionKey]: collectionCards || [],
+          [magicianKey]: isMagician || false,
         };
 
         if (avatar) {
@@ -116,7 +120,10 @@ export function createGameControlActions(
         return updates as GameState;
       });
 
-      shuffleDeck(player, 'site');
+      // Magician has no site deck, skip shuffling it
+      if (!isMagician) {
+        shuffleDeck(player, 'site');
+      }
       shuffleDeck(player, 'spell');
     },
 
@@ -185,6 +192,13 @@ export function createGameControlActions(
       });
     },
 
+    setIsMagician: (player, isMagician) => {
+      set(() => {
+        const magicianKey = player === 'player' ? 'playerIsMagician' : 'opponentIsMagician';
+        return { [magicianKey]: isMagician } as Partial<GameState>;
+      });
+    },
+
     applyFullState: (syncedState) => {
       set(() => ({
         board: syncedState.board,
@@ -199,6 +213,8 @@ export function createGameControlActions(
         opponentGraveyard: syncedState.opponentGraveyard,
         playerSpellStack: syncedState.playerSpellStack || [],
         opponentSpellStack: syncedState.opponentSpellStack || [],
+        playerIsMagician: syncedState.playerIsMagician || false,
+        opponentIsMagician: syncedState.opponentIsMagician || false,
         playerLife: syncedState.playerLife,
         opponentLife: syncedState.opponentLife,
         playerMana: syncedState.playerMana,

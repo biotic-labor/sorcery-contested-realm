@@ -388,9 +388,10 @@ export function useGameActions() {
     spellCards: CardInstance[],
     avatar: CardInstance | null,
     player: Player,
-    collectionCards?: CardInstance[]
+    collectionCards?: CardInstance[],
+    isMagician?: boolean
   ) => {
-    gameStore.importDeck(siteCards, spellCards, avatar, player, collectionCards);
+    gameStore.importDeck(siteCards, spellCards, avatar, player, collectionCards, isMagician);
     // Broadcast avatar (public) with its position, and deck counts (opponent creates hidden cards)
     const avatarPosition = player === 'player' ? { row: 3, col: 2 } : { row: 0, col: 2 };
     broadcast('deckImported', {
@@ -399,6 +400,7 @@ export function useGameActions() {
       spellDeckCount: spellCards.length,
       avatar: avatar ? serializeCard(avatar) : null,
       avatarPosition: avatar ? avatarPosition : null,
+      isMagician: isMagician || false,
     });
     if (isMultiplayer) {
       addLogEntry({

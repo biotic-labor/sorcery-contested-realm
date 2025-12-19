@@ -54,6 +54,10 @@ export interface GameState {
   playerCollection: CardInstance[];
   opponentCollection: CardInstance[];
 
+  // Magician avatar flags (no site deck - sites go in spellbook)
+  playerIsMagician: boolean;
+  opponentIsMagician: boolean;
+
   // Life totals
   playerLife: number;
   opponentLife: number;

@@ -126,32 +126,6 @@
   }
 }
 
-/* QHD/4K screens (2560px+) */
-@media (min-width: 2560px) {
-  :root {
-    --board-cell-width: 300px;
-    --board-cell-height: 225px;
-    --board-gap: 14px;
-    --board-padding: 28px;
-
-    --preview-size: 520px;
-    --preview-card-width: 371px;
-    --preview-card-height: 520px;
-
-    --stats-width: 300px;
-    --stats-padding: 20px;
-    --stats-label-size: 16px;
-    --stats-value-size: 48px;
-    --stats-value-small-size: 30px;
-    --stats-value-width: 68px;
-    --stats-value-height: 78px;
-    --stats-value-small-width: 46px;
-    --stats-value-small-height: 56px;
-    --stats-threshold-badge-size: 26px;
-    --stats-threshold-value-width: 32px;
-    --stats-threshold-value-height: 40px;
-  }
-}
 
 * {
   box-sizing: border-box;

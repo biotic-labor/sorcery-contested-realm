@@ -15,6 +15,8 @@ export const initialState: GameState = {
   opponentSpellStack: [],
   playerCollection: [],
   opponentCollection: [],
+  playerIsMagician: false,
+  opponentIsMagician: false,
   playerLife: 20,
   opponentLife: 20,
   playerMana: 0,

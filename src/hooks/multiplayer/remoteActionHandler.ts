@@ -376,6 +376,7 @@ export function applyRemoteAction(
       const avatar = payload.avatar as CardInstance | null;
       const avatarPosition = payload.avatarPosition as { row: number; col: number } | null;
       const sourcePlayer = payload.player as Player;
+      const isMagician = payload.isMagician as boolean | undefined;
 
       // DO NOT swap player - data should go in same slot on both clients
       // Host's deck -> playerSiteDeck, Guest's deck -> opponentSiteDeck
@@ -392,6 +393,12 @@ export function applyRemoteAction(
       const hiddenSiteCards = createHiddenCards(siteDeckCount, targetPlayer, 'site');
       const hiddenSpellCards = createHiddenCards(spellDeckCount, targetPlayer, 'spell');
       gameStore.setDecks(targetPlayer, hiddenSiteCards, hiddenSpellCards);
+
+      // Store Magician flag for the opponent
+      if (isMagician !== undefined) {
+        gameStore.setIsMagician(targetPlayer, isMagician);
+      }
+
       addLogEntry({
         type: 'action',
         player: opponentPlayer,

@@ -51,7 +51,8 @@ export function DeckImportModal({ isOpen, onClose, player }: DeckImportModalProp
         transformed.spellCards,
         transformed.avatar,
         effectivePlayer,
-        transformed.collectionCards
+        transformed.collectionCards,
+        transformed.isMagician
       );
 
       // Check if avatar is Harbinger - trigger special dice roll

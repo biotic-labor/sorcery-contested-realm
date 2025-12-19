@@ -116,11 +116,14 @@ export interface GameActions {
     spellCards: CardInstance[],
     avatar: CardInstance | null,
     player: Player,
-    collectionCards?: CardInstance[]
+    collectionCards?: CardInstance[],
+    isMagician?: boolean
   ) => void;
   clearDecks: (player: Player) => void;
   // Set decks directly (for multiplayer sync - no shuffle)
   setDecks: (player: Player, siteCards: CardInstance[], spellCards: CardInstance[]) => void;
+  // Set Magician flag (for multiplayer sync)
+  setIsMagician: (player: Player, isMagician: boolean) => void;
 
   // Apply full state (for reconnection sync)
   applyFullState: (state: SerializedGameState) => void;

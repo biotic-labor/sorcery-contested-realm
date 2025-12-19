@@ -106,6 +106,7 @@ export interface TransformedDeck {
   spellCards: CardInstance[];
   avatar: CardInstance | null;
   collectionCards: CardInstance[];
+  isMagician: boolean;
 }
 
 export function transformCuriosaDeck(
@@ -117,12 +118,18 @@ export function transformCuriosaDeck(
   const collectionCards: CardInstance[] = [];
   let avatar: CardInstance | null = null;
 
+  // Detect Magician avatar (has no site deck - all cards go to spellbook)
+  const isMagician = response.avatar?.card.name === 'Magician';
+
   // Process decklist
   for (const entry of response.decklist) {
     const instances = transformCuriosaEntry(entry, owner);
 
     // Route cards to appropriate deck based on category
-    if (entry.card.category === 'Site') {
+    // Magician: ALL cards go to spellbook (sites included)
+    if (isMagician) {
+      spellCards.push(...instances);
+    } else if (entry.card.category === 'Site') {
       siteCards.push(...instances);
     } else {
       // Spells (Minion, Magic, Aura, Artifact)
@@ -150,6 +157,7 @@ export function transformCuriosaDeck(
     spellCards,
     avatar,
     collectionCards,
+    isMagician,
   };
 }
 

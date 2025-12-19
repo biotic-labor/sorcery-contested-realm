@@ -17,6 +17,8 @@ export function getSerializedGameState(): SerializedGameState {
     opponentGraveyard: state.opponentGraveyard,
     playerSpellStack: state.playerSpellStack,
     opponentSpellStack: state.opponentSpellStack,
+    playerIsMagician: state.playerIsMagician,
+    opponentIsMagician: state.opponentIsMagician,
     playerLife: state.playerLife,
     opponentLife: state.opponentLife,
     playerMana: state.playerMana,
