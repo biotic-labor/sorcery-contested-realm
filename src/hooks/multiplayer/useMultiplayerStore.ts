@@ -215,7 +215,8 @@ export const useMultiplayerStore = create<MultiplayerState & MultiplayerActions>
           set({ gameCode: code, isHost: true, localPlayer: 'player' });
 
           // Register game with server for reconnection support
-          const peerId = get().myPeerId;
+          // Use peerService.getPeerId() directly since Zustand state update may not have completed yet
+          const peerId = peerService.getPeerId();
           const nickname = get().nickname;
           if (peerId) {
             registerGameWithServer(code, peerId, nickname);
@@ -297,13 +298,14 @@ export const useMultiplayerStore = create<MultiplayerState & MultiplayerActions>
           set({ gameCode: code, isHost: true, isPublicGame: true, localPlayer: 'player' });
 
           // Register as public game with server
-          const state = get();
-          const peerId = state.myPeerId;
+          // Use peerService.getPeerId() directly since Zustand state update may not have completed yet
+          const peerId = peerService.getPeerId();
+          const nickname = get().nickname;
           if (peerId) {
             await fetch(`/api/games/${encodeURIComponent(code)}/register-public`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ peerId, nickname: state.nickname }),
+              body: JSON.stringify({ peerId, nickname }),
             });
           }
 
@@ -397,18 +399,18 @@ export const useMultiplayerStore = create<MultiplayerState & MultiplayerActions>
           setupGuestStateAutoSave(code);
 
           // Register guest with server for reconnection support
-          const peerId = get().myPeerId;
+          // Use peerService.getPeerId() directly since Zustand state update may not have completed yet
+          const peerId = peerService.getPeerId();
           const nickname = get().nickname;
           if (peerId && nickname) {
             registerGuestWithServer(code, peerId, nickname);
           }
 
           // Send hello message
-          const state = get();
           peerService.send({
             type: 'hello',
-            nickname: state.nickname,
-            peerId: state.myPeerId!,
+            nickname: nickname,
+            peerId: peerId!,
           });
 
           get().addLogEntry({
@@ -504,7 +506,8 @@ export const useMultiplayerStore = create<MultiplayerState & MultiplayerActions>
           await peerService.createGameWithCode(gameCode);
           set({ isHost: true, localPlayer: 'player' });
 
-          const peerId = get().myPeerId;
+          // Use peerService.getPeerId() directly since Zustand state update may not have completed yet
+          const peerId = peerService.getPeerId();
           const nickname = get().nickname;
           if (peerId) {
             registerGameWithServer(gameCode, peerId, nickname);

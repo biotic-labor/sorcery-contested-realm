@@ -142,10 +142,10 @@ export function Dashboard({ onGameStart }: DashboardProps) {
       {/* Main content */}
       <main className="flex-1 flex items-center justify-center p-6">
         <div className="w-full max-w-md space-y-6">
-          {/* Nickname section */}
+          {/* Nickname section - editing disabled once a game is created */}
           <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
             <label className="block text-sm text-gray-400 mb-2">Your Name</label>
-            {isEditing ? (
+            {isEditing && !gameCode ? (
               <div className="flex gap-2">
                 <input
                   type="text"
@@ -166,15 +166,17 @@ export function Dashboard({ onGameStart }: DashboardProps) {
             ) : (
               <div className="flex items-center justify-between">
                 <span className="text-lg font-medium">{nickname}</span>
-                <button
-                  onClick={() => {
-                    setEditedNickname(nickname);
-                    setIsEditing(true);
-                  }}
-                  className="text-sm text-blue-400 hover:text-blue-300 transition-colors"
-                >
-                  Edit
-                </button>
+                {!gameCode && (
+                  <button
+                    onClick={() => {
+                      setEditedNickname(nickname);
+                      setIsEditing(true);
+                    }}
+                    className="text-sm text-blue-400 hover:text-blue-300 transition-colors"
+                  >
+                    Edit
+                  </button>
+                )}
               </div>
             )}
           </div>
